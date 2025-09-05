@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+{% block title %}Сражения{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/> 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css"> 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.5.1/dist/nouislider.min.css"> 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css"  />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.4.1/dist/MarkerCluster.css"  />
+<style>
+    .battle-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    .timeline-container {
+        margin-bottom: 10px;
+        padding: 10px;
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    .map-table-container {
+        display: flex;
+        gap: 20px;
+    }
+    .battle-table-container {
+        flex: 0 0 60%;
+        display: flex;
+        flex-direction: column;
+    }
+    .battle-table {
+        overflow-y: auto;
+        flex-grow: 1;
+        max-height: 600px;
+        margin-bottom: 15px;
+    }
+
+    .battle-map {
+        flex: 1.5;
+        min-height: 600px;
+        background: #f8f9fa;
+        border-radius: 5px;
+        position: sticky;
+        top: 20px;
+    }
+    .map-container {
+        height: 100%;
+        width: 100%;
+    }
+    tr.highlighted {
+        background-color: #fff3cd !important;
+    }
+    .noUi-handle {
+        height: 18px;
+        width: 18px;
+        top: -7px;
+    }
+    .noUi-connect {
+        background: #0d6efd;
+    }
+    .reset-filters-btn {
+        margin-top: 10px;
+    }
+    /* Кнопка полноэкранного режима */
+    .fullscreen-btn {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        z-index: 999;
+        background-color: white;
+        border: 1px solid #ccc;
+        padding: 5px 10px;
+        border-radius: 4px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        text-decoration: none;
+        color: #333;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .fullscreen-btn:hover {
+        background-color: #f1f1f1;
+    }
+    /* Для полноэкранного режима */
+    #map-container.fullscreen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 9999;
+        margin: 0;
+        padding: 0;
+    }
+    /* Внешние метки с засечками */
+    .timeline-pips-container {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 10px;
+        position: relative;
+        height: 30px;
+    }
+    .timeline-pip {
+        position: relative;
+        width: 11.11%; /* 100% / 9 */
+        text-align: center;
+    }
+    .timeline-pip::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 0;
+        width: 1px;
+        height: 16px;
+        background: #555;
+        transform: translateX(-50%);
+    }
+    .timeline-pip span {
+        position: absolute;
+        top: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.85rem;
+        color: #555;
+        white-space: nowrap;
+    }
+    @media (max-width: 992px) {
+        .map-table-container {
+            flex-direction: column;
+        }
+        .battle-table-container {
+            flex: 1 1 auto;
+        }
+        .battle-table {
+            max-height: 400px;
+        }
+        .battle-map {
+            min-height: 400px;
+        }
+    }
+
+    /* Убедимся, что подсказки скрыты, пока бегунок не активен */
+    .noUi-tooltip {
+        display: none;
+        opacity: 1;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+
+    /* Показываем только при активном перемещении */
+    .noUi-handle:active .noUi-tooltip,
+    .noUi-handle-active .noUi-tooltip {
+        display: block;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">Сражения</h2>
+        <a href="{{ url_for('battles.new_battle') }}" class="btn btn-primary me-2">
+            <i class="bi bi-plus-circle"></i> Добавить сражение
+        </a>
+    </div>
+    <div class="card-body">
+        {% if battles %}
+        <div class="battle-container">
+            <!-- Временная шкала -->
+            <div class="timeline-container">
+                <h5><i class="bi bi-calendar-range"></i> Временная шкала</h5>
+                <div id="timeline-slider" class="mt-3"></div>
+                <!-- Метки с засечками -->
+                <div class="timeline-pips-container" id="timeline-pips">
+                    <!-- Заполняется через JS -->
+                </div>
+                <div class="text-center reset-filters-btn">
+                    <button id="reset-filters" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-arrow-counterclockwise"></i> Сбросить фильтры
+                    </button>
+                </div>
+            </div>
+            <!-- Таблица и карта -->
+            <div class="map-table-container" id="map-table-container">
+                <div class="battle-table-container">
+                    <div class="table-responsive battle-table">
+                        <table class="table table-striped table-hover">
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th>Название</th>
+                                    <th>Дата</th>
+                                    <th>Место</th> 
+                                    <th>Победитель</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for battle in battles %}
+                                    <tr class="battle-row"
+                                        data-id="{{ battle.id }}"
+                                        data-name="{{ battle.name }}"
+                                        data-date="{{ battle.date if battle.date else '' }}"
+                                        data-timestamp="{{ battle.timestamp if battle.timestamp else 0 }}">
+                                        <td>{{ battle.name }}</td>
+                                        <td>{{ battle.date if battle.date else '-' }}</td>
+                                        <td>{{ battle.place_name if battle.place_name else '-' }}</td>
+                                        <td>{{ battle.victory if battle.victory else '-' }}</td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{{ url_for('battles.view_battle', id=battle.id) }}" class="btn btn-outline-primary" title="Просмотр">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                <a href="{{ url_for('battles.edit_battle', id=battle.id) }}" class="btn btn-outline-secondary" title="Редактировать">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                                <a href="#" class="btn btn-outline-info zoom-to-battle" data-id="{{ battle.id }}" title="Показать на карте">
+                                                    <i class="bi bi-map"></i>
+                                                </a>
+                                                <form action="{{ url_for('battles.delete_battle', id=battle.id) }}" method="POST" class="d-inline">
+                                                    <button type="submit" class="btn btn-outline-danger" title="Удалить" onclick="return confirm('Вы уверены?')">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-muted small">
+                        Показано: <span id="visible-count">{{ battles|length }}</span> из {{ battles|length }} сражений
+                    </div>
+                </div>
+                <!-- Карта -->
+                <div class="battle-map" id="map-container">
+                    <div id="map" class="map-container"></div>
+                    <a href="#" id="toggle-fullscreen" class="fullscreen-btn" title="На весь экран">
+                        <i class="bi bi-arrows-fullscreen"></i> На весь экран
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info mb-0">Нет сражений для отображения</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script> 
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script> 
+<script src="https://cdn.jsdelivr.net/npm/nouislider@15.5.1/dist/nouislider.min.js"></script> 
+<script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.min.js"></script> 
+<script>
+$(document).ready(function() {
+    let isFullscreen = false;
+    let currentHighlightedMarker = null;
+
+    // Функция преобразования даты в timestamp
+    function historicalDateToTimestamp(year, month, day) {
+        return new Date(year, month - 1, day).getTime() / 1000;
+    }
+
+    // Инициализация карты
+    const map = L.map('map').setView([40.418407, -3.712746], 3);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    // Базовые слои
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+    });
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri — Source: Esri, Maxar, EarthCache'
+    });
+    const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data: © OpenStreetMap contributors, SRTM | Map style: © OpenTopoMap (CC-BY-SA)'
+    });
+    const stamenTerrain = L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg', {
+        attribution: 'Tiles by Stamen Design, under CC BY 3.0. Data by OpenStreetMap, under ODbL.'
+    });
+
+    osmLayer.addTo(map);
+
+    // Контроллер слоёв
+    const baseLayers = {
+        "OpenStreetMap": osmLayer,
+        "Спутник (Esri)": satelliteLayer,
+        "Топография (OpenTopoMap)": topoLayer,
+        "Рельеф (Stamen Terrain)": stamenTerrain
+    };
+    L.control.layers(baseLayers, null, { collapsed: false }).addTo(map);
+
+    // Кластеры
+    const markerCluster = L.markerClusterGroup({
+        iconCreateFunction: function(cluster) {
+            return L.divIcon({
+                html: '<div style="background-color: #0073e6; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">' + cluster.getChildCount() + '</div>',
+                className: 'marker-cluster',
+                iconSize: L.point(30, 30)
+            });
+        }
+    });
+    map.addLayer(markerCluster);
+
+    // Полноэкранный режим
+    $('#toggle-fullscreen').on('click', function(e) {
+        e.preventDefault();
+        isFullscreen = !isFullscreen;
+        if (isFullscreen) {
+            $('.battle-table-container').fadeOut(200, function () {
+                $('#map-container').addClass('fullscreen');
+                map.invalidateSize();
+            });
+            $(this).html('<i class="bi bi-x-lg"></i> Выйти');
+        } else {
+            $('.battle-table-container').fadeIn(200, function () {
+                $('#map-container').removeClass('fullscreen');
+                map.invalidateSize();
+            });
+            $(this).html('<i class="bi bi-arrows-fullscreen"></i> На весь экран');
+        }
+    });
+
+    $(document).on('keydown', function(e) {
+        if (e.key === "Escape" && isFullscreen) {
+            $('.battle-table-container').fadeIn(200, function () {
+                $('#map-container').removeClass('fullscreen');
+                map.invalidateSize();
+            });
+            $('#toggle-fullscreen').html('<i class="bi bi-arrows-fullscreen"></i> На весь экран');
+            isFullscreen = false;
+        }
+    });
+
+    // Все сражения
+    const allBattles = [];
+    let slider;
+
+    {% for battle in battles %}
+        {% if battle.geom %}
+            try {
+                const coords = {{ battle.geom | tojson | safe }}.coordinates;
+                const date = "{{ battle.date if battle.date else 'не указана' }}";
+                let year = 0, month = 1, day = 1;
+                if ("{{ battle.date }}") {
+                    const dateParts = "{{ battle.date }}".split('-');
+                    year = parseInt(dateParts[0]) || 1800;
+                    month = parseInt(dateParts[1]) || 1;
+                    day = parseInt(dateParts[2]) || 1;
+                }
+                const popupContent = `<b>{{ battle.name }}</b><br>
+                                     Дата: ${date}<br>
+                                     Место: {{ battle.place_name if battle.place_name else 'не указано' }}<br>
+                                     Победитель: {{ battle.victory if battle.victory else 'не определен' }}`;
+                const marker = L.marker([coords[1], coords[0]]).bindPopup(popupContent);
+                const battleData = {
+                    id: {{ battle.id }},
+                    name: "{{ battle.name }}",
+                    date: "{{ battle.date if battle.date else 'не указана' }}",
+                    year: year,
+                    month: month,
+                    day: day,
+                    timestamp: historicalDateToTimestamp(year, month, day),
+                    marker: marker,
+                    row: $(`tr[data-id="{{ battle.id }}"]`),
+                    geom: {{ battle.geom | tojson | safe if battle.geom else 'null' }}
+                };
+                allBattles.push(battleData);
+                markerCluster.addLayer(marker);
+            } catch (e) {
+                console.error('Error with battle {{ battle.id }}:', e);
+            }
+        {% endif %}
+    {% endfor %}
+
+    // Подсветка строки
+    allBattles.forEach(battle => {
+        battle.row.hover(
+            function () { $(this).addClass('highlighted'); if (battle.marker) battle.marker.openPopup(); },
+            function () { $(this).removeClass('highlighted'); }
+        ).on('click', function (e) {
+            const target = $(e.target).closest('a, button, form');
+            if (!target.length && battle.marker && battle.marker.getLatLng) {
+                map.setView(battle.marker.getLatLng(), 12);
+            }
+        });
+        if (battle.marker) {
+            battle.marker.on('click', function () {
+                $('.battle-row').removeClass('highlighted');
+                battle.row.addClass('highlighted').get(0).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
+        }
+    });
+
+    // Формат для tooltip'а: "6 августа 1812 г."
+    function formatTooltipDate(date) {
+        const day = date.getDate();
+        const month = date.toLocaleString('ru', { month: 'long' });
+        const year = date.getFullYear();
+        return day === 1 ? `${month} ${year} г.` : `${day} ${month} ${year} г.`;
+    }
+
+    // Создание меток с засечками
+    function createTimelinePips() {
+        const container = document.getElementById('timeline-pips');
+        container.innerHTML = '';
+
+        const minTs = historicalDateToTimestamp(1807, 1, 1);
+        const maxTs = historicalDateToTimestamp(1816, 1, 1); // до начала 1816
+        const totalYears = 9;
+
+        for (let i = 0; i < totalYears; i++) {
+            const year = 1807 + i;
+            const pip = document.createElement('div');
+            pip.className = 'timeline-pip';
+            pip.innerHTML = `<span>${year}</span>`;
+            container.appendChild(pip);
+        }
+    }
+
+    // Инициализация временной шкалы
+    function initTimeline() {
+        const minDate = historicalDateToTimestamp(1807, 1, 1);
+        const maxDate = historicalDateToTimestamp(1815, 12, 31);
+
+        slider = document.getElementById('timeline-slider');
+        noUiSlider.create(slider, {
+            start: [minDate, maxDate],
+            connect: true,
+            range: { 'min': minDate, 'max': maxDate },
+            tooltips: [
+                {
+                    to: value => formatTooltipDate(new Date(value * 1000)),
+                    // Показывать только при drag
+                    format: {
+                        to: value => formatTooltipDate(new Date(value * 1000))
+                    }
+                },
+                {
+                    to: value => formatTooltipDate(new Date(value * 1000)),
+                    format: {
+                        to: value => formatTooltipDate(new Date(value * 1000))
+                    }
+                }
+            ],
+            pips: { mode: 'none' }
+        });
+
+        createTimelinePips();
+
+        filterBattles(); // инициализация фильтрации
+
+        let filterTimeout;
+        slider.noUiSlider.on('update', function() {
+            clearTimeout(filterTimeout);
+            filterTimeout = setTimeout(filterBattles, 300);
+        });
+    }
+
+    function filterBattles() {
+        const values = slider.noUiSlider.get();
+        const min = values[0];
+        const max = values[1];
+        let visibleCount = 0;
+
+        markerCluster.clearLayers();
+        allBattles.forEach(battle => {
+            const inRange = battle.timestamp >= min && battle.timestamp <= max;
+            battle.row.toggle(inRange);
+            if (inRange && battle.geom) {
+                markerCluster.addLayer(battle.marker);
+                visibleCount++;
+            }
+        });
+
+        $('#visible-count').text(visibleCount);
+        if (visibleCount > 0) {
+            map.fitBounds(markerCluster.getBounds().pad(0.2));
+        }
+    }
+
+    // Сброс фильтров
+    $('#reset-filters').on('click', function() {
+        const minDate = historicalDateToTimestamp(1807, 1, 1);
+        const maxDate = historicalDateToTimestamp(1815, 12, 31);
+        slider.noUiSlider.set([minDate, maxDate]);
+    });
+
+    // Кнопка "Показать на карте"
+    $('.zoom-to-battle').on('click', function(e) {
+        e.preventDefault();
+        const battleId = $(this).data('id');
+        const battleData = allBattles.find(b => b.id === battleId);
+        if (battleData && battleData.marker) {
+            map.setView(battleData.marker.getLatLng(), 12);
+        }
+    });
+
+    // Запуск
+    initTimeline();
+    $('[title]').tooltip();
+
+    if (window.matchMedia("(max-width: 992px)").matches) {
+        map.setView([40.418407, -3.712746], 2);
+    }
+});
+</script>
+{% endblock %}

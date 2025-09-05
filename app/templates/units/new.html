@@ -1,0 +1,311 @@
+<!-- app/templates/units/new.html -->
+{% extends "base.html" %}
+{% block title %}Новое подразделение{% endblock %}
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+<style>
+    .form-label.required:after { content: " *"; color: #dc3545; }
+    .select2-container--default .select2-selection--single { height: 38px; padding: 5px; }
+    
+    /* Стили для секции истории командования */
+    .command-history-section {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    .assignment-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: end;
+        padding: 10px 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .assignment-row:last-child {
+        border-bottom: none;
+    }
+    .assignment-field {
+        flex: 1 1 200px; /* Растягиваться, минимальная ширина 200px */
+    }
+    .assignment-delete {
+        flex: 0 0 auto;
+    }
+    .btn-add-assignment {
+        margin-top: 10px;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="mb-0">Создание нового подразделения</h2>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('units.new_unit') }}" novalidate id="new-unit-form">
+            {% include "partials/_form_errors.html" %}
+            
+            <!-- Основные данные подразделения -->
+            <div class="mb-3">
+                <label for="name" class="form-label required">Название подразделения:</label>
+                <input type="text" class="form-control" id="name" name="name" required
+                       value="{{ form_data.name if form_data }}">
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="unit_type_id" class="form-label">Тип подразделения:</label>
+                        <select class="form-select select2" id="unit_type_id" name="unit_type_id">
+                            <option value="">-- Выберите тип (необязательно) --</option>
+                            {% for type in unit_types %}
+                                <option value="{{ type.id }}"
+                                    {% if form_data and form_data.unit_type_id == type.id %}selected{% endif %}>
+                                    {{ type.connection_type }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="country_id" class="form-label required">Страна:</label>
+                        <select class="form-select select2" id="country_id" name="country_id" required>
+                            <option value="">-- Выберите страну --</option>
+                            {% for country in countries %}
+                                <option value="{{ country.id }}"
+                                    {% if form_data and form_data.country_id == country.id %}selected{% endif %}>
+                                    {{ country.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="parent_unit_id" class="form-label">Вышестоящее подразделение:</label>
+                        <select class="form-select select2" id="parent_unit_id" name="parent_unit_id"
+                                {% if not form_data or not form_data.country_id %}disabled{% endif %}>
+                            <option value="">-- Независимое подразделение --</option>
+                            {% if form_data and form_data.country_id %}
+                                <!-- parent_units не передается в new_unit GET, но динамически загружается -->
+                            {% endif %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="formation_date" class="form-label">Дата формирования:</label>
+                        <input type="date" class="form-control" id="formation_date" name="formation_date"
+                               value="{{ form_data.formation_date if form_data }}">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="dissolution_date" class="form-label">Дата расформирования:</label>
+                        <input type="date" class="form-control" id="dissolution_date" name="dissolution_date"
+                               value="{{ form_data.dissolution_date if form_data }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Секция истории командования -->
+            <div class="command-history-section mt-4 p-3 bg-light border rounded">
+                <h5>История командования</h5>
+                <div id="assignments-container">
+                    <!-- Существующие назначения будут здесь -->
+                </div>
+                
+                <!-- Шаблон для нового назначения (скрыт) -->
+                <div id="new-assignment-template" class="assignment-row" style="display:none;">
+                    <div class="assignment-field">
+                        <label class="form-label">Командир:</label>
+                        <select class="form-select commander-select" name="commander_id">
+                            <option value="">-- Выберите командира --</option>
+                            {% for commander in commanders %}
+                                <option value="{{ commander.id }}">
+                                    {{ commander.last_name }} {{ commander.first_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="assignment-field">
+                        <label class="form-label">Дата начала:</label>
+                        <input type="date" class="form-control" name="start_date">
+                    </div>
+                    <div class="assignment-field">
+                        <label class="form-label">Дата окончания:</label>
+                        <input type="date" class="form-control" name="end_date">
+                    </div>
+                    <div class="assignment-delete">
+                        <button type="button" class="btn btn-outline-danger btn-sm remove-assignment">Удалить</button>
+                    </div>
+                </div>
+                
+                <button type="button" class="btn btn-outline-primary btn-sm btn-add-assignment" id="add-assignment-btn">
+                    Добавить назначение
+                </button>
+            </div>
+
+                        <!-- Секция участия в сражениях -->
+            <div class="battle-participation-section mt-4 p-3 bg-light border rounded">
+                <h5>Участие в сражениях</h5>
+                <div id="battles-container">
+                    <!-- Существующие участия будут здесь (при редактировании) -->
+                </div>
+                <!-- Шаблон для нового участия (скрыт) -->
+                <div id="new-battle-template" class="battle-row row mb-2 align-items-end" style="display:none;">
+                    <div class="col-md-5 mb-2">
+                        <label class="form-label">Сражение:</label>
+                        <select class="form-select battle-select" name="battle_id">
+                            <option value="">-- Выберите сражение --</option>
+                            {% for battle in all_battles %}
+                                <option value="{{ battle.id }}">{{ battle.name }} ({{ battle.date_begin }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-5 mb-2">
+                        <label class="form-label">Сторона:</label>
+                        <input type="text" class="form-control" name="side" placeholder="Например: Атакующие, Обороняющиеся">
+                    </div>
+                    <div class="col-md-2 mb-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm remove-battle w-100">Удалить</button>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-outline-primary btn-sm btn-add-battle" id="add-battle-btn">
+                    Добавить участие в сражении
+                </button>
+            </div>
+
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{{ url_for('units.list_units') }}" class="btn btn-secondary">
+                    Отмена
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    Создать подразделение
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/ru.js"></script>
+<script>
+$(document).ready(function() {
+    // Инициализация Select2 для основных полей
+    $('.select2').select2({
+        language: 'ru',
+        width: '100%'
+    });
+    
+    // Загрузка родительских подразделений при изменении страны
+    $('#country_id').change(function() {
+        const countryId = $(this).val();
+        const parentSelect = $('#parent_unit_id');
+        
+        if (countryId) {
+            parentSelect.prop('disabled', false).empty().append('<option value="">-- Загрузка... --</option>');
+            
+            $.get("{{ url_for('units.get_units_by_country') }}", { country_id: countryId }, function(data) {
+                parentSelect.empty().append('<option value="">-- Независимое подразделение --</option>');
+                $.each(data, function(index, unit) {
+                    parentSelect.append($('<option>', {
+                        value: unit.id,
+                        text: unit.name
+                    }));
+                });
+            });
+        } else {
+            parentSelect.prop('disabled', true).empty().append('<option value="">-- Сначала выберите страну --</option>');
+        }
+    });
+
+    // Логика для истории командования
+    let assignmentCounter = 0;
+    
+    // Функция инициализации Select2 для полей командиров
+    function initCommanderSelect(selectElement) {
+        $(selectElement).select2({
+            language: 'ru',
+            width: '100%',
+            placeholder: "-- Выберите командира --",
+            allowClear: true
+        });
+    }
+    
+    // Добавление нового назначения
+    $('#add-assignment-btn').click(function() {
+        const template = $('#new-assignment-template').clone();
+        template.removeAttr('id').show();
+        
+        // Обновляем имена полей с учетом счетчика
+        const newIndex = assignmentCounter++;
+        template.find('select[name="commander_id"]').attr('name', 'commander_id_' + newIndex);
+        template.find('input[name="start_date"]').attr('name', 'start_date_' + newIndex);
+        template.find('input[name="end_date"]').attr('name', 'end_date_' + newIndex);
+        
+        // Добавляем в контейнер
+        $('#assignments-container').append(template);
+        
+        // Инициализируем Select2 для нового поля выбора командира
+        initCommanderSelect(template.find('.commander-select'));
+    });
+    
+    // Удаление назначения
+    $('#assignments-container').on('click', '.remove-assignment', function() {
+        $(this).closest('.assignment-row').remove();
+    });
+
+        // Логика для участия в сражениях
+    let battleCounter = 0;
+
+    // Добавление нового участия в сражении
+    $('#add-battle-btn').click(function() {
+        const template = $('#new-battle-template').clone();
+        template.removeAttr('id').show();
+        // Обновляем имена полей с учетом счетчика (если нужно, но в данном случае просто клонируем)
+        // Для edit.html может потребоваться другая логика с индексами
+        $('#battles-container').append(template);
+        // Инициализируем Select2 для нового поля выбора сражения, если используется
+        // initBattleSelect(template.find('.battle-select')); // Раскомментируйте, если используете Select2
+    });
+
+    // Удаление участия в сражении
+    $('#battles-container').on('click', '.remove-battle', function() {
+        $(this).closest('.battle-row').remove();
+    });
+    
+    // Валидация формы
+    $('#new-unit-form').submit(function(e) {
+        let isValid = true;
+        
+        // Проверка обязательных полей
+        $('.required').each(function() {
+            const input = $(this).is('label') ? $('#' + $(this).attr('for')) : $(this);
+            if (!input.val()) {
+                isValid = false;
+                input.addClass('is-invalid');
+                input.next('.invalid-feedback').remove();
+                input.after('<div class="invalid-feedback">Это поле обязательно для заполнения</div>');
+            }
+        });
+        
+        if (!isValid) {
+            e.preventDefault();
+            $('html, body').animate({
+                scrollTop: $(".is-invalid").first().offset().top - 100
+            }, 100);
+        }
+    });
+});
+</script>
+{% endblock %}

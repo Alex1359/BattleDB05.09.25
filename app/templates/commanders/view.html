@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}{{ commander.last_name }} {{ commander.first_name }}{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">
+            {{ commander.last_name }} {{ commander.first_name }}
+            <small class="text-muted fs-5">Просмотр</small>
+        </h2>
+        <div class="btn-group">
+            <a href="{{ url_for('commanders.edit_commander', id=commander.id) }}" 
+               class="btn btn-outline-secondary">
+                Редактировать
+            </a>
+            <a href="{{ url_for('commanders.list_commanders') }}" class="btn btn-outline-primary">
+                Назад к списку
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <!-- Левая колонка -->
+            <div class="col-md-6">
+                <!-- Основная информация -->
+                <div class="mb-3">
+                    <h5>Основная информация</h5>
+                    <hr class="mt-1">
+                    <dl class="row">
+                        <dt class="col-sm-4">Дата рождения:</dt>
+                        <dd class="col-sm-8">{{ commander.birth_date|default('-', true) }}</dd>
+                        
+                        <dt class="col-sm-4">Дата смерти:</dt>
+                        <dd class="col-sm-8">{{ commander.death_date|default('-', true) }}</dd>
+                        
+                        <dt class="col-sm-4">Страна:</dt>
+                        <dd class="col-sm-8">
+                            {{ commander.country.name if commander.country else '-' }}
+                        </dd>
+                    </dl>
+                </div>
+
+                <!-- История званий -->
+                {% if commander_rank_history %}
+                <div class="mb-3">
+                    <h5>История званий</h5>
+                    <hr class="mt-1">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Звание</th>
+                                    <th>Страна</th>
+                                    <th>Дата повышения</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in commander_rank_history %}
+                                <tr>
+                                    <td>{{ entry.rank_name if entry.rank_name else entry.rank if entry.rank else '-' }}</td>
+                                    <td>{{ entry.country_name if entry.country_name else '-' }}</td>
+                                    <td>
+                                        {% if entry.date_promoted %}
+                                            {{ entry.date_promoted.strftime('%d.%m.%Y') }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% else %}
+                <div class="mb-3">
+                    <h5>История званий</h5>
+                    <hr class="mt-1">
+                    <p class="text-muted">Нет записей о повышениях</p>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Правая колонка -->
+            <div class="col-md-6">
+                <!-- Биография -->
+                <div class="mb-3">
+                    <h5>Биография</h5>
+                    <hr class="mt-1">
+                    {% if commander.biography %}
+                        <div class="bg-light p-3 rounded">
+                            {{ commander.biography|nl2br }}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">Нет информации</p>
+                    {% endif %}
+                </div>
+
+                <!-- Участие в сражениях -->
+                <div class="mb-3">
+                    <h5>Принимал участие в сражениях</h5>
+                    <hr class="mt-1">
+                    {% if commander.battle_participations %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Сражение</th>
+                                        <th>Дата</th>
+                                        <th>Роль</th>
+                                        <th>Сторона</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for participation in commander.battle_participations|sort(attribute='battle.date') %}
+                                    <tr>
+                                        <td>
+                                            <a href="{{ url_for('battles.view_battle', id=participation.battle.id) }}">
+                                                {{ participation.battle.name }}
+                                            </a>
+                                        </td>
+                                        <td>
+                                            {{ participation.battle.date.strftime('%d.%m.%Y') if participation.battle.date else '-' }}
+                                        </td>
+                                        <td>{{ participation.role or '-' }}</td>
+                                        <td>
+                                            {{ commander.country.name if commander.country else '-' }}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">Не участвовал в сражениях</p>
+                    {% endif %}
+                </div>
+                
+                <!-- Командование подразделениями -->
+                <div class="mb-3">
+                    <h5>Командование подразделениями</h5>
+                    <hr class="mt-1">
+                    {% if commander.military_units %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Подразделение</th>
+                                        <th>Тип</th>
+                                        <th>Начало командования</th>
+                                        <th>Окончание командования</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for assignment in commander.military_units|sort(attribute='Com_start') %}
+                                    <tr>
+                                        <td>
+                                            {% if assignment.unit %}
+                                                <a href="{{ url_for('units.view_unit', id=assignment.unit.id) }}" class="fw-bold">
+                                                    {{ assignment.unit.get_full_hierarchy_name(assignment.Com_start) }}
+                                                </a>
+                                            {% else %}
+                                                <!-- Отображаем информацию, если unit отсутствует -->
+                                                <span class="text-muted">Подразделение удалено или не указано</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if assignment.unit %}
+                                                {{ assignment.unit.type }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ assignment.Com_start.strftime('%d.%m.%Y') if assignment.Com_start else '-' }}</td>
+                                        <td>{{ assignment.Com_end.strftime('%d.%m.%Y') if assignment.Com_end else '-' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">Нет записей о командовании подразделениями</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

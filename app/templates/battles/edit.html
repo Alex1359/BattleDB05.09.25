@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование {{ battle.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .unit-column {
+        border: 1px solid #dee2e6;
+        padding: 15px;
+        border-radius: 5px;
+    }
+    .unit-list {
+        list-style-type: none;
+        padding-left: 0;
+    }
+    .unit-list li {
+        background-color: #f8f9fa;
+        margin-bottom: 5px;
+        padding: 10px;
+        border-radius: 4px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">Редактирование: {{ battle.name }}</h2>
+        <a href="{{ url_for('battles.view_battle', id=battle.id) }}" class="btn btn-outline-primary">
+            ← Назад к просмотру
+        </a>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('battles.edit_battle', id=battle.id) }}" novalidate>
+            {% include "partials/_form_errors.html" %}
+            
+            <!-- Основная информация -->
+            <div class="mb-3">
+                <label for="name" class="form-label required">Название сражения:</label>
+                <input type="text" class="form-control" id="name" name="name" required value="{{ battle.name }}">
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="date_begin" class="form-label required">Дата начала:</label>
+                        <input type="date" class="form-control" id="date_begin" name="date_begin" required value="{{ battle.date_begin }}">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="date_end" class="form-label">Дата окончания:</label>
+                        <input type="date" class="form-control" id="date_end" name="date_end" value="{{ battle.date_end }}">
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="place_id" class="form-label">Место сражения:</label>
+                <select class="form-select" id="place_id" name="place_id">
+                    <option value="">-- Выберите место --</option>
+                    {% for place in places %}
+                        <option value="{{ place.id }}" {% if battle.place_id == place.id %}selected{% endif %}>
+                            {{ place.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label for="victory" class="form-label required">Победитель:</label>
+                <input type="text" class="form-control" id="victory" name="victory" required value="{{ battle.victory }}">
+            </div>
+
+            <div class="mb-3">
+                <label for="description" class="form-label">Описание:</label>
+                <textarea class="form-control" id="description" name="description" rows="4">{{ battle.description or '' }}</textarea>
+            </div>
+
+            <!-- Участники -->
+            <h4 class="mt-5 mb-3">Участники сражения</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>🇫🇷 Французские войска</h5>
+                    <div class="input-group mb-3">
+                        <select id="french-units" class="form-select">
+                            <option value="">-- Выберите подразделение --</option>
+                            {% for unit in french_units %}
+                                <option value="{{ unit.id }}">{{ unit.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="button" class="btn btn-outline-primary" onclick="addParticipant('french-units', 'french-list')">
+                            Добавить
+                        </button>
+                    </div>
+                    <ul id="french-list" class="unit-list">
+                        {% for p in participants if p.unit.country.name == 'France' %}
+                            <li>
+                                {{ p.unit.name }}
+                                <button type="button" class="btn btn-sm btn-danger ms-2" onclick="removeParticipant(this)">Удалить</button>
+                                <input type="hidden" name="unit_ids" value="{{ p.unit.id }}">
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="col-md-6">
+                    <h5>Союзники</h5>
+                    <div class="input-group mb-3">
+                        <select id="other-units" class="form-select">
+                            <option value="">-- Выберите подразделение --</option>
+                            {% for unit in other_units %}
+                                <option value="{{ unit.id }}">{{ unit.name }} ({{ unit.country.name }})</option>
+                            {% endfor %}
+                        </select>
+                        <button type="button" class="btn btn-outline-primary" onclick="addParticipant('other-units', 'other-list')">
+                            Добавить
+                        </button>
+                    </div>
+                    <ul id="other-list" class="unit-list">
+                        {% for p in participants if p.unit.country.name != 'France' %}
+                            <li>
+                                {{ p.unit.name }}
+                                <button type="button" class="btn btn-sm btn-danger ms-2" onclick="removeParticipant(this)">Удалить</button>
+                                <input type="hidden" name="unit_ids" value="{{ p.unit.id }}">
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Кнопки -->
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{{ url_for('battles.view_battle', id=battle.id) }}" class="btn btn-secondary">
+                    Отмена
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    Сохранить изменения
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function addParticipant(selectId, listId) {
+    const select = document.getElementById(selectId);
+    const selectedOption = select.options[select.selectedIndex];
+    const list = document.getElementById(listId);
+
+    if (!select.value || !selectedOption.text) return;
+
+    // Проверяем, не добавлен ли уже такой участник
+    const existing = Array.from(list.getElementsByTagName('li')).some(li => {
+        return li.textContent.includes(selectedOption.text);
+    });
+
+    if (existing) {
+        alert("Это подразделение уже добавлено");
+        return;
+    }
+
+    const li = document.createElement('li');
+    li.innerHTML = `
+        ${selectedOption.text}
+        <button type="button" class="btn btn-sm btn-danger ms-2" onclick="removeParticipant(this)">Удалить</button>
+        <input type="hidden" name="unit_ids" value="${select.value}">
+    `;
+    list.appendChild(li);
+    select.selectedIndex = 0; // Сбросить выбор
+}
+
+function removeParticipant(button) {
+    button.parentElement.remove();
+}
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const dateEndInput = document.getElementById('date_end');
+    dateEndInput.addEventListener('change', function () {
+        if (!this.value) {
+            this.value = null; // Устанавливаем null, если поле пустое
+        }
+    });
+});
+</script>
+
+<script>
+function addParticipant(selectId, listId) {
+    const select = document.getElementById(selectId);
+    const selectedOption = select.options[select.selectedIndex];
+    const list = document.getElementById(listId);
+
+    if (!select.value || !selectedOption.text) return;
+
+    const existing = Array.from(list.getElementsByTagName('li')).some(li => {
+        return li.textContent.includes(selectedOption.text);
+    });
+
+    if (existing) {
+        alert("Это подразделение уже добавлено");
+        return;
+    }
+
+    const li = document.createElement('li');
+    li.innerHTML = `
+        ${selectedOption.text}
+        <button type="button" class="btn btn-sm btn-danger ms-2" onclick="removeParticipant(this)">Удалить</button>
+        <input type="hidden" name="unit_ids" value="${select.value}">
+    `;
+    list.appendChild(li);
+    select.selectedIndex = 0;
+}
+
+function removeParticipant(button) {
+    button.parentElement.remove();
+}
+</script>
+
+{% endblock %}

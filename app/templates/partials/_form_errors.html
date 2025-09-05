@@ -1,0 +1,11 @@
+{% if errors %}
+<div class="alert alert-danger">
+    <ul class="mb-0">
+        {% for field, field_errors in errors.items() %}
+            {% for error in field_errors %}
+                <li>{{ error }}</li>
+            {% endfor %}
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}

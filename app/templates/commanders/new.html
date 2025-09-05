@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Добавление командующего{% endblock %}
+
+{% block extra_css %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+
+<style>
+    .form-label.required:after {
+        content: " *";
+        color: #dc3545;
+    }
+    .select2-container--default .select2-selection--single {
+        height: 38px;
+        padding: 5px;
+    }
+    .rank-entry {
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js "></script>
+
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/ru.js"></script>
+
+<script>
+$(document).ready(function () {
+    // Инициализация Select2
+    $('.select2').select2({
+        language: 'ru',
+        width: '100%'
+    });
+
+    // Загрузка званий по стране
+    $('#country_id').change(function () {
+        const countryId = $(this).val();
+        const container = $('#ranks-container');
+
+        if (countryId) {
+            $('#btn-add-rank').prop('disabled', false);
+
+            // Обновляем все select'ы
+            container.find('.rank-select').each(function () {
+                const $select = $(this);
+                $select.prop('disabled', false).empty().append('<option value="">-- Загрузка... --</option>');
+
+                $.get("{{ url_for('commanders.get_ranks_api') }}", { country_id: countryId })
+                    .done(function(data) {
+                        $select.empty().append('<option value="">-- Выберите звание --</option>');
+                        $.each(data, function(index, rank) {
+                            $select.append($('<option>', {
+                                value: rank.id,
+                                text: rank.name
+                            }));
+                        });
+                    })
+                    .fail(function() {
+                        $select.empty().append('<option value="">-- Ошибка загрузки --</option>');
+                    });
+            });
+        } else {
+            container.find('.rank-select').prop('disabled', true).empty()
+                .append('<option>-- Сначала выберите страну --</option>');
+            $('#btn-add-rank').prop('disabled', true);
+        }
+    });
+
+    // Добавление новой строки звания
+    $('#btn-add-rank').click(function () {
+        const template = $('#rank-template').html();
+        $('#ranks-container').append(template);
+    });
+
+    // Удаление строки звания
+    $('#ranks-container').on('click', '.btn-remove-rank', function () {
+        $(this).closest('.rank-entry').remove();
+    });
+
+    // Валидация формы
+    $('form').submit(function () {
+        let isValid = true;
+
+        $('.required').each(function () {
+            const input = $('#' + $(this).attr('for'));
+            if (!input.val()) {
+                isValid = false;
+                input.addClass('is-invalid')
+                     .next('.invalid-feedback').remove()
+                     .end()
+                     .after('<div class="invalid-feedback">Это поле обязательно для заполнения</div>');
+            }
+        });
+
+        return isValid;
+    });
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="mb-0">Добавление командующего</h2>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('commanders.new_commander') }}" novalidate>
+            <!-- Фамилия и имя -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="last_name" class="form-label required">Фамилия:</label>
+                        <input type="text" class="form-control" id="last_name" name="last_name" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="first_name" class="form-label">Имя (необязательное):</label>
+                        <input type="text" class="form-control" id="first_name" name="first_name">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Даты рождения и смерти -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="birth_date" class="form-label">Дата рождения:</label>
+                        <input type="date" class="form-control" id="birth_date" name="birth_date">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="death_date" class="form-label">Дата смерти:</label>
+                        <input type="date" class="form-control" id="death_date" name="death_date">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Страна -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="country_id" class="form-label required">Страна:</label>
+                        <select class="form-select select2" id="country_id" name="country_id" required>
+                            <option value="">-- Выберите страну --</option>
+                            {% for country in countries %}
+                                <option value="{{ country.id }}">{{ country.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- История званий -->
+            <div class="mb-3">
+                <label class="form-label">История званий (необязательно):</label>
+                <div id="ranks-container">
+                    <div class="rank-entry input-group mb-2">
+                        <div class="row g-2 w-100">
+                            <!-- Поле выбора звания -->
+                            <div class="col-md-5">
+                                <label class="form-label">Выберите звание</label>
+                                <select class="form-select rank-select" name="history_rank_ids[]">
+                                    <option value="">-- Сначала выберите страну --</option>
+                                </select>
+                            </div>
+                            <!-- Поле даты повышения -->
+                            <div class="col-md-5">
+                                <label class="form-label">Дата присвоения звания</label>
+                                <input type="date" class="form-control" name="history_dates[]">
+                            </div>
+                            <!-- Кнопка удаления -->
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button type="button" class="btn btn-outline-secondary btn-remove-rank ms-1">×</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btn-add-rank" disabled>
+                    + Добавить звание
+                </button>
+            </div>
+
+            <!-- Биография -->
+            <div class="mb-3">
+                <label for="biography" class="form-label">Биография:</label>
+                <textarea class="form-control" id="biography" name="biography" rows="4"></textarea>
+            </div>
+
+            <!-- Кнопки формы -->
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('commanders.list_commanders') }}" class="btn btn-secondary">Отмена</a>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Шаблон для новых записей -->
+<div id="rank-template" style="display: none;">
+    <div class="rank-entry input-group mb-2">
+        <div class="row g-2 w-100">
+            <!-- Поле выбора звания -->
+            <div class="col-md-5">
+                <label class="form-label">Выберите звание</label>
+                <select class="form-select rank-select" name="history_rank_ids[]" required>
+                    <option value="">-- Сначала выберите страну --</option>
+                    {% for rank in ranks %}
+                        <option value="{{ rank.id }}">{{ rank.rank_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Поле даты повышения -->
+            <div class="col-md-5">
+                <label class="form-label">Дата присвоения звания</label>
+                <input type="date" class="form-control" name="history_dates[]" required>
+            </div>
+            <!-- Кнопка удаления -->
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="button" class="btn btn-outline-secondary btn-remove-rank ms-1">×</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

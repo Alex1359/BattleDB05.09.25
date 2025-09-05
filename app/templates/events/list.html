@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+{% block title %}События{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/> 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css"> 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.5.1/dist/nouislider.min.css"> 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css"  />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.4.1/dist/MarkerCluster.css"  />
+<style>
+    /* Основные стили */
+    .card {
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    /* Контейнеры */
+    .map-table-container {
+        display: flex;
+        gap: 20px;
+        height: 70vh;
+    }
+    .battle-table-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    .events-container {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 10px;
+    }
+    .battle-map {
+        flex: 1;
+        min-height: 300px;
+        background: #f8f9fa;
+        border-radius: 5px;
+        position: relative;
+    }
+    .map-container {
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+    }
+    /* Стили временной шкалы */
+    .timeline-container {
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    .timeline-entry {
+        margin-bottom: 15px;
+        padding: 10px 15px;
+        border-left: 3px solid #0d6efd;
+        background: #fff;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+    }
+    .timeline-entry:hover {
+        background-color: #f8f9fa;
+        transform: translateX(5px);
+    }
+    .timeline-date {
+        font-weight: bold;
+        color: #dc3545;
+        margin-bottom: 5px;
+    }
+    .timeline-content p {
+        margin-bottom: 0;
+    }
+    /* Стили для слайдера */
+    .noUi-handle {
+        height: 18px;
+        width: 18px;
+        top: -7px;
+    }
+    .noUi-connect {
+        background: #0d6efd;
+    }
+    .slider-date-display {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    .reset-filters-btn {
+        margin-top: 10px;
+    }
+
+    /* --- Внешние метки с засечками --- */
+    .timeline-pips-container {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 10px;
+        position: relative;
+        height: 30px;
+    }
+    .timeline-pip {
+        position: relative;
+        width: 11.11%; /* 100% / 9 */
+        text-align: center;
+    }
+    .timeline-pip::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 0;
+        width: 1px;
+        height: 16px;
+        background: #555;
+        transform: translateX(-50%);
+    }
+    .timeline-pip span {
+        position: absolute;
+        top: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.85rem;
+        color: #555;
+        white-space: nowrap;
+    }
+
+    /* --- Всплывающие подсказки --- */
+    .noUi-tooltip {
+        display: none;
+        opacity: 1;
+        background: rgba(0, 0, 0, 0.85);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        pointer-events: none;
+        text-align: center;
+        transform: translate(-50%, -10px);
+        position: absolute;
+        top: -24px;
+        left: 50%;
+        z-index: 10;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .noUi-handle:active .noUi-tooltip,
+    .noUi-handle-active .noUi-tooltip {
+        display: block;
+    }
+
+    /* Подсветка */
+    .highlighted {
+        background-color: #fff3cd !important;
+        box-shadow: 0 0 0 2px #ffc107;
+    }
+
+    /* Адаптивность */
+    @media (max-width: 992px) {
+        .map-table-container {
+            flex-direction: column;
+        }
+        .battle-map {
+            min-height: 400px;
+        }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">События</h2>
+    </div>
+    <div class="card-body">
+        {% if events %}
+        <div class="battle-container">
+            <!-- Временная шкала -->
+            <div class="timeline-container">
+                <h5><i class="bi bi-calendar-range"></i> Временная шкала</h5>
+                <div id="timeline-slider" class="mt-3"></div>
+                <!-- Метки с засечками -->
+                <div class="timeline-pips-container" id="timeline-pips">
+                    <!-- Заполняется через JS -->
+                </div>
+                <div class="text-center reset-filters-btn">
+                    <button id="reset-filters" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-arrow-counterclockwise"></i> Сбросить фильтры
+                    </button>
+                </div>
+            </div>
+            <!-- Таблица и карта -->
+            <div class="map-table-container">
+                <div class="battle-table-container">
+                    <div class="events-container">
+                        {% for event in events %}
+                            <div class="timeline-entry" data-id="{{ event.id }}">
+                                <div class="timeline-date">{{ event.date }}</div>
+                                <div class="timeline-content">
+                                    <p>{{ event.event }}</p>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="text-muted small mt-2">
+                        Показано: <span id="visible-count">{{ events|length }}</span> из {{ events|length }} событий
+                    </div>
+                </div>
+                <!-- Карта -->
+                <div class="battle-map">
+                    <div id="map" class="map-container"></div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info mb-0">Нет событий для отображения</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script> 
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script> 
+<script src="https://cdn.jsdelivr.net/npm/nouislider@15.5.1/dist/nouislider.min.js"></script> 
+<script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.min.js"></script> 
+<script>
+$(document).ready(function() {
+    // Инициализация карты с отключенным скроллом
+    const map = L.map('map', {
+        scrollWheelZoom: false,
+        dragging: false,
+        doubleClickZoom: false,
+        boxZoom: false,
+        keyboard: false,
+        touchZoom: false
+    }).setView([40.418407, -3.712746], 3);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',  {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>  contributors'
+    }).addTo(map);
+
+    // Создание кластера маркеров
+    const markerCluster = L.markerClusterGroup();
+    map.addLayer(markerCluster);
+
+    // Функция для преобразования даты в timestamp
+    function historicalDateToTimestamp(year, month, day) {
+        return new Date(year, month - 1, day).getTime() / 1000;
+    }
+
+    // Формат для tooltip'а: "6 августа 1812 г."
+    function formatTooltipDate(date) {
+        const day = date.getDate();
+        const month = date.toLocaleString('ru', { month: 'long' });
+        const year = date.getFullYear();
+        return day === 1 ? `${month} ${year} г.` : `${day} ${month} ${year} г.`;
+    }
+
+    // Массив всех событий
+    const allEvents = [];
+
+    // Обработка событий из шаблона
+    {% for event in events %}
+        {% if event.geom %}
+            try {
+                const coords = {{ event.geom | tojson | safe }}.coordinates;
+                const date = "{{ event.date if event.date else 'не указана' }}";
+                let year = 0, month = 1, day = 1;
+                if ("{{ event.date }}") {
+                    const dateParts = "{{ event.date }}".split('-');
+                    year = parseInt(dateParts[0]) || 1800;
+                    month = parseInt(dateParts[1]) || 1;
+                    day = parseInt(dateParts[2]) || 1;
+                }
+                const popupContent = `
+                    <b>{{ event.event | escapejs }}</b><br>
+                    Дата: ${date}<br>
+                    Место: {{ event.place_name | default('не указано') | escapejs }}
+                `;
+                // Создание маркера
+                const marker = L.marker([coords[1], coords[0]], {
+                    title: "{{ event.event | escapejs }}"
+                }).bindPopup(popupContent);
+                // Данные события
+                const eventData = {
+                    id: {{ event.id }},
+                    name: "{{ event.event | escapejs }}",
+                    date: date,
+                    year: year,
+                    month: month,
+                    day: day,
+                    timestamp: historicalDateToTimestamp(year, month, day),
+                    marker: marker,
+                    row: $(`div[data-id="{{ event.id }}"]`),
+                    geom: coords
+                };
+                allEvents.push(eventData);
+                markerCluster.addLayer(marker); // Добавляем маркер в кластер
+            } catch (e) {
+                console.error('Ошибка обработки события {{ event.id }}:', e);
+            }
+        {% endif %}
+    {% endfor %}
+
+    // Подсветка строки и центрирование на маркере
+    allEvents.forEach(event => {
+        event.row.hover(
+            function () {
+                $(this).addClass('highlighted');
+                if (event.marker) {
+                    event.marker.openPopup();
+                    map.setView(event.marker.getLatLng(), 8);
+                }
+            },
+            function () {
+                $(this).removeClass('highlighted');
+            }
+        ).on('click', function (e) {
+            e.preventDefault();
+            if (event.marker && event.marker.getLatLng) {
+                map.setView(event.marker.getLatLng(), 10);
+                event.marker.openPopup();
+            }
+        });
+        if (event.marker) {
+            event.marker.on('click', function () {
+                $('.timeline-entry').removeClass('highlighted');
+                event.row.addClass('highlighted')
+                    .get(0).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
+        }
+    });
+
+    // Создание меток с засечками под слайдером
+    function createTimelinePips() {
+        const container = document.getElementById('timeline-pips');
+        container.innerHTML = '';
+
+        for (let year = 1807; year <= 1815; year++) {
+            const pip = document.createElement('div');
+            pip.className = 'timeline-pip';
+            pip.innerHTML = `<span>${year}</span>`;
+            container.appendChild(pip);
+        }
+    }
+
+    // Инициализация временной шкалы
+    function initTimeline() {
+        const minDate = historicalDateToTimestamp(1807, 1, 1);
+        const maxDate = historicalDateToTimestamp(1815, 12, 31);
+        const slider = document.getElementById('timeline-slider');
+
+        noUiSlider.create(slider, {
+            start: [minDate, maxDate],
+            connect: true,
+            range: {
+                'min': minDate,
+                'max': maxDate
+            },
+            tooltips: [
+                { to: value => formatTooltipDate(new Date(value * 1000)) },
+                { to: value => formatTooltipDate(new Date(value * 1000)) }
+            ],
+            pips: { mode: 'none' } // отключаем внутренние метки
+        });
+
+        createTimelinePips();
+
+        function filterEvents() {
+            const values = slider.noUiSlider.get();
+            const min = values[0];
+            const max = values[1];
+            let visibleCount = 0;
+
+            markerCluster.clearLayers();
+            allEvents.forEach(event => {
+                const inRange = event.timestamp >= min && event.timestamp <= max;
+                event.row.toggle(inRange);
+                if (inRange && event.marker) {
+                    markerCluster.addLayer(event.marker);
+                    visibleCount++;
+                }
+            });
+
+            $('#visible-count').text(visibleCount);
+            if (visibleCount > 0) {
+                const bounds = markerCluster.getBounds();
+                if (bounds.isValid()) {
+                    map.fitBounds(bounds.pad(0.2));
+                }
+            }
+        }
+
+        filterEvents();
+
+        let filterTimeout;
+        slider.noUiSlider.on('update', function() {
+            clearTimeout(filterTimeout);
+            filterTimeout = setTimeout(filterEvents, 300);
+        });
+
+        $('#reset-filters').on('click', function() {
+            slider.noUiSlider.set([minDate, maxDate]);
+        });
+    }
+
+    // Запуск временной шкалы
+    initTimeline();
+
+    // Инициализация подсказок
+    $('[title]').tooltip();
+
+    // Адаптация карты для мобильных устройств
+    if (window.matchMedia("(max-width: 992px)").matches) {
+        map.setView([40.418407, -3.712746], 2);
+    }
+});
+</script>
+{% endblock %}

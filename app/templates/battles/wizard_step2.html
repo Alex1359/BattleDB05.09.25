@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}Новое сражение (шаг 2){% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2 @4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+<style>
+    .participant-form {
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+
+    .side-allies {
+        border-left: 4px solid #007bff;
+    }
+    .side-axis {
+        border-left: 4px solid #dc3545;
+    }
+    .side-other {
+        border-left: 4px solid #6c757d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="mb-0">Участники сражения</h2>
+        <div class="wizard-progress mt-3">
+            <div class="progress">
+                <div class="progress-bar" role="progressbar" style="width: 66%" aria-valuenow="66" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            <div class="d-flex justify-content-between mt-2">
+                <span>1. Основная информация</span>
+                <span class="text-primary fw-bold">2. Участники</span>
+                <span>3. Потери и трофеи</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('battles.new_battle_step2') }}" novalidate>
+            <input type="hidden" name="step" value="2">
+            <div id="participants-container">
+                {% if participationss %}
+                    {% for p in participationss %}
+                        {% set index = loop.index0 %}
+                        <div class="participant-form side-{ 'other' if not p.country_id or p.country_id == 'allies' %}">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label required">Страна:</label>
+                                        <select name="participations-{{ index }}-country_id" class="form-select country-select" required>
+                                            <option value="">-- Выберите страну --</option>
+                                            {% for country in countries %}
+                                                <option value="{{ country.id }}"
+                                                    {% if p.country_id == country.id %}selected{% endif %}>
+                                                    {{ country.name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label required">Подразделение:</label>
+                                        <select name="participations-{{ index }}-unit_id" class="form-select unit-select" required>
+                                            <option value="">-- Выберите подразделение --</option>
+                                            {% for unit in units if not p.country_id or p.country_id == unit.country_id %}
+                                                <option value="{{ unit.id }}"
+                                                    {% if p.unit_id == unit.id %}selected{% endif %}>
+                                                    {{ unit.name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label class="form-label">Командующий:</label>
+                                        <select name="participations-{{ index }}-commander_id" class="form-select commander-select">
+                                            <option value="">-- Не указан --</option>
+                                            {% for commander in commanders if not p.country_id or p.country_id == commander.country_id %}
+                                                <option value="{{ commander.id }}"
+                                                    {% if p.commander_id == commander.id %}selected{% endif %}>
+                                                    {{ commander.last_name }} {{ commander.first_name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-1 d-flex align-items-end pb-2">
+                                    <button type="button" class="btn btn-danger btn-sm w-100 remove-participant">X</button>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-center">Нет участников</p>
+                {% endif %}
+            </div>
+
+            <div class="mt-3">
+                <button type="button" class="btn btn-outline-secondary" onclick="addParticipant()">+ Добавить участникa</button>
+            </div>
+
+            <div class="card-footer mt-4 d-flex justify-content-between">
+                <a href="{{ url_for('battles.new_battle') }}" class="btn btn-secondary">← Назад</a>
+                <button type="submit" class="btn btn-primary">→ Далее</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2 @4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+function addParticipant() {
+    const container = document.getElementById('participants-container');
+    const index = container.children.length;
+
+    const div = document.createElement('div');
+    div.className = 'participant-form side-other';
+    div.setAttribute('data-index', index);
+
+    div.innerHTML = `
+        <div class="participant-form side-other" data-index="${index}">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label required">Страна:</label>
+                        <select name="participations-${index}-country_id" class="form-select country-select" required>
+                            <option value="">-- Выберите страну --</option>
+                            {% for country in countries %}
+                                <option value="{{ country.id }}">{{ country.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label required">Подразделение:</label>
+                        <select name="participations-${index}-unit_id" class="form-select unit-select" required>
+                            <option value="">-- Выберите подразделение --</option>
+                            {% for unit in units %}
+                                <option value="{{ unit.id }}">{{ unit.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label">Командующий:</label>
+                        <select name="participations-${index}-commander_id" class="form-select commander-select">
+                            <option value="">-- Не указан --</option>
+                            {% for commander in commanders %}
+                                <option value="{{ commander.id }}">{{ commander.last_name }} {{ commander.first_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-1 d-flex align-items-end pb-2">
+                    <button type="button" class="btn btn-danger btn-sm w-100" onclick="removeParticipant(this)">
+                        X
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    container.appendChild(div);
+
+    // Обновляем Select2
+    $('.form-select').select2({ width: '100%' });
+
+    // Обработчик изменения страны
+    div.querySelector('.country-select').addEventListener('change', function () {
+        const countryId = this.value;
+        const currentUnitSelect = div.querySelector('.unit-select');
+
+        currentUnitSelect.innerHTML = '<option value="">-- Выберите подразделение --</option>';
+        {% for unit in units %}
+            if ("{{ unit.country_id }}" == countryId || countryId === '') {
+                const option = document.createElement('option');
+                option.value = "{{ unit.id }}";
+                option.textContent = "{{ unit.name }}";
+                currentUnitSelect.appendChild(option);
+            }
+        {% endfor %}
+    });
+}
+
+// Удаление участника
+function removeParticipant(button) {
+    button.closest('.participant-form').remove();
+}
+</script>
+{% endblock %}

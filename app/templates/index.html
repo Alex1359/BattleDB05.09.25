@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Welcome to Peninsular Database</h1>
+<p>
+    <a href="{{ url_for('commanders.list_commanders') }}">Persons</a> |
+    <a href="{{ url_for('units.list_units') }}">Military Units</a> |
+    <a href="{{ url_for('battles.list_battles') }}">Battles</a>
+</p>
+{% endblock %}

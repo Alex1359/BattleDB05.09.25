@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Новое сражение (шаг 1){% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2 @4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+<link href="https://unpkg.com/leaflet @1.7.1/dist/leaflet.css" rel="stylesheet">
+<style>
+    .form-label.required:after { content: " *"; color: #dc3545; }
+    .select2-container--default .select2-selection--single { height: 38px; padding: 5px; }
+    .wizard-progress { height: 5px; }
+
+    #map {
+        height: 400px;
+        margin-bottom: 15px;
+    }
+
+    #place-coordinates {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+
+    #new-place-form {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="mb-0">Добавление сражения</h2>
+        <div class="wizard-progress mt-3">
+            <div class="progress">
+                <div class="progress-bar" role="progressbar" style="width: 33%" aria-valuenow="33" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            <div class="d-flex justify-content-between mt-2">
+                <span class="text-primary fw-bold">1. Основная информация</span>
+                <span>2. Участники</span>
+                <span>3. Потери и трофеи</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('battles.new_battle') }}" novalidate>
+            <input type="hidden" name="step" value="1">
+
+            <!-- Название -->
+            <div class="mb-3">
+                <label for="name" class="form-label required">Название сражения:</label>
+                <input type="text" class="form-control" id="name" name="name" required
+                       value="{{ battle_data.name if battle_data and battle_data.name }}">
+            </div>
+
+            <!-- Даты -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="date_begin" class="form-label required">Дата начала:</label>
+                    <input type="date" class="form-control" id="date_begin" name="date_begin" required
+                           value="{{ battle_data.date_begin if battle_data and battle_data.date_begin }}">
+                </div>
+                <div class="col-md-6">
+                    <label for="date_end" class="form-label">Дата окончания:</label>
+                    <input type="date" class="form-control" id="date_end" name="date_end"
+                           value="{{ battle_data.date_end if battle_data and battle_data.date_end }}">
+                </div>
+            </div>
+
+            <!-- Место -->
+            <div class="mb-3">
+                <label for="place_id" class="form-label">Место сражения:</label>
+                <select class="form-select select2" id="place_id" name="place_id">
+                    <option value="">-- Выберите место --</option>
+                    {% for place in places %}
+                        <option value="{{ place.id }}"
+                            {% if battle_data.place_id == place.id %}selected{% endif %}>
+                            {{ place.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <small id="place-coordinates" class="form-text text-muted">
+                    Координаты выбранного места будут показаны здесь
+                </small>
+            </div>
+
+            <!-- Победитель -->
+            <div class="mb-3">
+                <label for="victory" class="form-label required">Победитель:</label>
+                <input type="text" class="form-control" id="victory" name="victory" required
+                       value="{{ battle_data.victory if battle_data and battle_data.victory }}">
+            </div>
+
+            <!-- Описание -->
+            <div class="mb-3">
+                <label for="description" class="form-label">Описание:</label>
+                <textarea class="form-control" id="description" name="description" rows="4">
+{{ battle_data.description if battle_data and battle_data.description }}
+                </textarea>
+            </div>
+
+            <!-- Кнопка "Далее" -->
+            <div class="d-flex justify-content-between mt-4">
+                <button type="submit" class="btn btn-primary">→ Далее</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2 @4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://unpkg.com/leaflet @1.7.1/dist/leaflet.js"></script>
+
+<script>
+$(document).ready(function () {
+    $('.select2').select2({ width: '100%' });
+
+    // Валидация формы
+    $('form').on('submit', function (e) {
+        let isValid = true;
+
+        $('.required').each(function () {
+            const input = $(this).is('label') ? $('#' + $(this).attr('for')) : $(this);
+            if (!input.val()) {
+                isValid = false;
+                input.addClass('is-invalid');
+                input.next('.invalid-feedback').remove();
+                input.after('<div class="invalid-feedback">Это поле обязательно</div>');
+            }
+        });
+
+        const startDate = $('#date_begin').val();
+        const endDate = $('#date_end').val();
+
+        if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+            $('#date_end').addClass('is-invalid');
+            $('#date_end').next('.invalid-feedback').remove();
+            $('#date_end').after('<div class="invalid-feedback">Дата окончания не может быть раньше даты начала</div>');
+            isValid = false;
+        }
+
+        return isValid;
+    });
+});
+</script>
+{% endblock %}

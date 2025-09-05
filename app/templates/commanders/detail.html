@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="commander-detail">
+    <h2>{{ commander.first_name }} {{ commander.last_name }}</h2>
+    
+    <div class="current-rank">
+        <h3>Текущее звание:</h3>
+        <p>{{ commander.current_rank.name if commander.current_rank else 'Не указано' }}</p>
+    </div>
+    
+    <div class="rank-history">
+        <h3>История званий:</h3>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Дата присвоения</th>
+                    <th>Звание</th>
+                    <th>Уровень</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for assignment in commander.rank_assignments %}
+                <tr>
+                    <td>{{ assignment.date_promoted.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ assignment.rank.name }}</td>
+                    <td>{{ assignment.rank.rank_level }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="add-rank-form">
+        <h3>Добавить звание:</h3>
+        <form method="POST" action="{{ url_for('commanders.add_rank', commander_id=commander.id) }}">
+            <div class="form-group">
+                <label for="rank_id">Звание:</label>
+                <select name="rank_id" class="form-control" required>
+                    {% for rank in available_ranks %}
+                    <option value="{{ rank.id }}">{{ rank.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="promotion_date">Дата присвоения:</label>
+                <input type="date" name="promotion_date" class="form-control" 
+                       value="{{ datetime.now().strftime('%Y-%m-%d') }}">
+            </div>
+            <button type="submit" class="btn btn-primary">Добавить звание</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

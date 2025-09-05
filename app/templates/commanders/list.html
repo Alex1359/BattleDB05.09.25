@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Персоналии{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css"> 
+<style>
+    .fullscreen-btn {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        z-index: 999;
+        background-color: white;
+        border: 1px solid #ccc;
+        padding: 5px 10px;
+        border-radius: 4px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        text-decoration: none;
+        color: #333;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .fullscreen-btn:hover {
+        background-color: #f1f1f1;
+    }
+    .filter-card {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+
+    .country-badge {
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.85em;
+        font-weight: 500;
+    }
+    .country-france {
+        background-color: #0d6efd; /* синий */
+    }
+    .country-british {
+        background-color: #dc3545; /* красный */
+    }
+    .country-spain {
+        background-color: #ffc107; /* желтый */
+        color: #212529; /* темный текст для контраста */
+    }
+    .country-portugal {
+        background-color: #198754; /* зеленый */
+    }
+    .country-default {
+        background-color: #6c757d; /* серый по умолчанию */
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">Персоналии</h2>
+        <a href="{{ url_for('commanders.new_commander') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Добавить нового
+        </a>
+    </div>
+    
+    <div class="card-body">
+        <!-- Форма фильтрации -->
+        <div class="filter-card">
+            <form method="GET" action="{{ url_for('commanders.list_commanders') }}">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="last_name" class="form-label">Фамилия</label>
+                        <input type="text" class="form-control" id="last_name" name="last_name" 
+                               value="{{ request.args.get('last_name', '') }}"
+                               placeholder="Введите фамилию">
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="country" class="form-label">Страна</label>
+                        <select class="form-select" id="country" name="country">
+                            <option value="">Все страны</option>
+                            {% for country in countries %}
+                                <option value="{{ country.id }}"
+                                    {% if request.args.get('country')|int == country.id %}selected{% endif %}>
+                                    {{ country.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="btn-group w-100">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-funnel"></i> Фильтровать
+                            </button>
+                            <a href="{{ url_for('commanders.list_commanders') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle"></i> Сбросить
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {% if commanders.items %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Фамилия</th>
+                            <th>Имя</th>
+                            <th>Страна</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for commander in commanders.items %}
+                        <tr>
+                            <td>{{ commander.last_name }}</td>
+                            <td>{{ commander.first_name }}</td>
+                            <td>
+                                {% if commander.country %}
+                                    {% set country_class = "country-default" %}
+                                    {% if commander.country.name == "France" %}
+                                        {% set country_class = "country-france" %}
+                                    {% elif commander.country.name == "British" %}
+                                        {% set country_class = "country-british" %}
+                                    {% elif commander.country.name == "Spain" %}
+                                        {% set country_class = "country-spain" %}
+                                    {% elif commander.country.name == "Portugal" %}
+                                        {% set country_class = "country-portugal" %}
+                                    {% endif %}
+                                    
+                                    <span class="country-badge {{ country_class }}">
+                                        {{ commander.country.name }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ url_for('commanders.view_commander', id=commander.id) }}" 
+                                       class="btn btn-outline-primary" title="Просмотр">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{{ url_for('commanders.edit_commander', id=commander.id) }}" 
+                                       class="btn btn-outline-secondary" title="Редактировать">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form action="{{ url_for('commanders.delete_commander', id=commander.id) }}" 
+                                          method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-outline-danger" 
+                                                title="Удалить" onclick="return confirm('Вы уверены?')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Пагинация с сохранением параметров фильтрации -->
+            {% if commanders.pages > 1 %}
+                {% with pagination=commanders, endpoint='commanders.list_commanders', 
+                        params=request.args.to_dict() %}
+                    {% include "partials/_pagination.html" %}
+                {% endwith %}
+            {% endif %}
+            
+        {% else %}
+            <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle"></i> Нет командующих, соответствующих выбранным фильтрам
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Инициализация всплывающих подсказок
+    $('[title]').tooltip();
+    
+    // Подсветка активных фильтров
+    $('select[name="country"], input[name="last_name"]').each(function() {
+        if ($(this).val()) {
+            $(this).addClass('is-valid');
+        }
+    });
+});
+</script>
+{% endblock %}

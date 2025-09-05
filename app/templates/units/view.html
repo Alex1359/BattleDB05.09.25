@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+
+{% block title %}{{ unit.name }} - Просмотр{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    #movement-map {
+        height: 500px;
+        width: 100%;
+        border-radius: 4px;
+        margin-bottom: 20px;
+        z-index: 1;
+    }
+    .movement-popup b {
+        color: #0d6efd;
+    }
+    .leaflet-popup-content {
+        min-width: 200px;
+    }
+    .hierarchy-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+    .hierarchy-arrow {
+        margin: 0 8px;
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">
+            {{ unit.name }}
+            <small class="text-muted fs-5">Просмотр подразделения</small>
+        </h2>
+        <div class="btn-group">
+            <a href="{{ url_for('units.edit_unit', id=unit.id) }}" class="btn btn-outline-secondary">
+                Редактировать
+            </a>
+            <a href="{{ url_for('units.list_units') }}" class="btn btn-outline-primary">
+                Назад к списку
+            </a>
+        </div>
+    </div>
+
+    <div class="card-body">
+        <div class="row">
+            <!-- Основная информация -->
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <h5>Основная информация</h5>
+                    <hr class="mt-1">
+                    <dl class="row">
+                        <dt class="col-sm-4">Тип:</dt>
+                        <dd class="col-sm-8">{{ unit.type if unit.type else '-' }}</dd>
+
+                        <dt class="col-sm-4">Страна:</dt>
+                        <dd class="col-sm-8">{{ unit.country.name if unit.country else '-' }}</dd>
+
+                        <dt class="col-sm-4">Дата формирования:</dt>
+                        <dd class="col-sm-8">{{ unit.formation_date|strftime('%d.%m.%Y') if unit.formation_date else '-' }}</dd>
+
+                        <dt class="col-sm-4">Дата расформирования:</dt>
+                        <dd class="col-sm-8">{{ unit.dissolution_date|strftime('%d.%m.%Y') if unit.dissolution_date else '-' }}</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Командование -->
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <h5>Командование</h5>
+                    <hr class="mt-1">
+                    {% if unit.commanders %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Командир</th>
+                                    <th>Начало</th>
+                                    <th>Окончание</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for assignment in unit.commanders %}
+                                <tr>
+                                    <td>
+                                        {% if assignment.commander %}
+                                            <a href="{{ url_for('commanders.view_commander', id=assignment.commander.id) }}">
+                                                {{ assignment.commander.last_name }} {{ assignment.commander.first_name }}
+                                            </a>
+                                        {% else %}
+                                            Неизвестен
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ assignment.Com_start|strftime('%d.%m.%Y') }}</td>
+                                    <td>{{ assignment.Com_end|strftime('%d.%m.%Y') if assignment.Com_end else '' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">Не было назначено ни одного командира</p>
+                    {% endif %}
+                </div>
+
+                <!-- Вышестоящее подразделение -->
+                <div class="mb-3">
+                    <h5>Вышестоящее подразделение</h5>
+                    <hr class="mt-1">
+                    {% if unit.subordination_history %}
+                        <div class="hierarchy-container">
+                            {% for relation in unit.subordination_history %}
+                                {% if relation.parent_unit %}
+                                    <div class="hierarchy-item">
+                                        <a href="{{ url_for('units.view_unit', id=relation.parent_unit.id) }}" class="fw-bold">
+                                            {{ relation.parent_unit.name }} ({{ relation.parent_unit.type }})
+                                        </a>
+                                        <div class="ms-2 small text-muted">
+                                            с {{ relation.start_date|strftime('%d.%m.%Y') }}
+                                            {% if relation.end_date %}
+                                                по {{ relation.end_date|strftime('%d.%m.%Y') }}
+                                            {% else %}
+                                                ()
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">Нет вышестоящих подразделений</p>
+                    {% endif %}
+                </div>
+
+                <!-- Подчиненные подразделения -->
+                <div class="mb-3">
+                    <h5>Подчиненные подразделения</h5>
+                    <hr class="mt-1">
+                    {% if unit.children_relations %}
+                        <div class="list-group">
+                            {% for child_relation in unit.children_relations %}
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <a href="{{ url_for('units.view_unit', id=child_relation.unit.id) }}" class="fw-bold">
+                                            {{ child_relation.unit.name }} ({{ child_relation.unit.type }})
+                                        </a>
+                                        <small class="text-muted">
+                                            с {{ child_relation.start_date|strftime('%d.%m.%Y') }}
+                                            {% if child_relation.end_date %}
+                                                по {{ child_relation.end_date|strftime('%d.%m.%Y') }}
+                                            {% else %}
+                                                ()
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">Нет подчинённых подразделений</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Участие в битвах -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Участие в битвах</h5>
+    </div>
+    <div class="card-body">
+        {% if unit.battle_participations %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Битва</th>
+                        <th>Дата</th>
+                        <th>Сторона</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for participation in unit.battle_participations %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('battles.view_battle', id=participation.battle.id) }}">
+                                {{ participation.battle.name }}
+                            </a>
+                        </td>
+                        <td>{{ participation.battle.date_begin|strftime('%d.%m.%Y') }}</td>
+                        <td>{{ participation.side }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">Не участвовало в битвах</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Перемещения -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">История перемещений</h5>
+    </div>
+    <div class="card-body">
+        {% if unit.movements %}
+        <div id="movement-map"></div>
+        
+        <div class="table-responsive mt-4">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>№</th>
+                        <th>Из</th>
+                        <th>В</th>
+                        <th>Дата</th>
+                        <th>Расстояние</th>
+                        <th>Описание маршрута</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for movement in unit.movements %}
+                    <tr data-movement-id="{{ loop.index }}">
+                        <td>{{ loop.index }}</td>
+                        <td>{{ movement.start_place.name }}</td>
+                        <td>{{ movement.end_place.name }}</td>
+                        <td>{{ movement.date|strftime('%d.%m.%Y') }}</td>
+                        <td class="distance-km">
+                            {% if movement.distance_km %}
+                                {% set distance_km = movement.distance_km / 1000 %}
+                                {{ "%.1f"|format(distance_km) }} км
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ movement.route_description or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">Нет данных о перемещениях</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if unit.movements %}
+    // Инициализация карты
+    const map = L.map('movement-map').setView([50.0, 10.0], 4);
+    
+    // Добавление базового слоя карты
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 18
+    }).addTo(map);
+    
+    // Цвета для разных маршрутов
+    const colors = ['#3388ff', '#ff7800', '#38a832', '#9c27b0', '#f44336'];
+    
+    // Слои для группировки маркеров и линий
+    const markersLayer = L.layerGroup().addTo(map);
+    const routesLayer = L.layerGroup().addTo(map);
+    
+    // Массив для границ
+    const bounds = [];
+    
+    // Обработка каждого перемещения
+    {% for movement in unit.movements %}
+    {% if movement.start_place.latitude and movement.start_place.longitude and movement.end_place.latitude and movement.end_place.longitude %}
+    (function() {
+        const movementId = {{ loop.index }};
+        const startCoords = [{{ movement.start_place.latitude }}, {{ movement.start_place.longitude }}];
+        const endCoords = [{{ movement.end_place.latitude }}, {{ movement.end_place.longitude }}];
+        const color = colors[(movementId - 1) % colors.length];
+        
+        // Добавляем координаты для автоматического масштабирования
+        bounds.push(startCoords, endCoords);
+        
+        // Маркер начала
+        const startMarker = L.marker(startCoords, {
+            movementId: movementId
+        }).addTo(markersLayer);
+        
+        // Маркер конца
+        const endMarker = L.marker(endCoords, {
+            movementId: movementId
+        }).addTo(markersLayer);
+        
+        // Линия перемещения
+        const routeLine = L.polyline([startCoords, endCoords], {
+            color: color,
+            weight: 4,
+            opacity: 0.7,
+            movementId: movementId
+        }).addTo(routesLayer);
+        
+        // Всплывающие подсказки
+        const popupContent = `
+            <div class="movement-popup">
+                <b>Перемещение #${movementId}</b><br>
+                <b>Из:</b> {{ movement.start_place.name }}<br>
+                <b>В:</b> {{ movement.end_place.name }}<br>
+                <b>Дата:</b> {{ movement.date|strftime('%d.%m.%Y') }}<br>
+                {% if movement.distance_km %}
+                <b>Расстояние:</b> {{ "%.1f"|format(movement.distance_km) }} км<br>
+                {% endif %}
+                {% if movement.route_description %}
+                <b>Описание:</b> {{ movement.route_description }}
+                {% endif %}
+            </div>
+        `;
+        
+        startMarker.bindPopup(popupContent);
+        endMarker.bindPopup(popupContent);
+        routeLine.bindPopup(popupContent);
+        
+        // Подсветка строки таблицы при наведении на маршрут
+        function highlightTableRow(highlight) {
+            const row = document.querySelector(`tr[data-movement-id="${movementId}"]`);
+            if (row) {
+                row.style.backgroundColor = highlight ? 'rgba(13, 110, 253, 0.1)' : '';
+            }
+        }
+        
+        routeLine.on('mouseover', function() { highlightTableRow(true); });
+        routeLine.on('mouseout', function() { highlightTableRow(false); });
+        startMarker.on('mouseover', function() { highlightTableRow(true); });
+        startMarker.on('mouseout', function() { highlightTableRow(false); });
+        endMarker.on('mouseover', function() { highlightTableRow(true); });
+        endMarker.on('mouseout', function() { highlightTableRow(false); });
+    })();
+    {% endif %}
+    {% endfor %}
+    
+    // Автоматическое масштабирование карты под все маршруты
+    if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [50, 50] });
+    }
+    
+    // Управление слоями
+    const baseLayers = {
+        "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        })
+    };
+    
+    const overlays = {
+        "Маркеры": markersLayer,
+        "Маршруты": routesLayer
+    };
+    
+    L.control.layers(baseLayers, overlays, {collapsed: false}).addTo(map);
+    {% endif %}
+});
+</script>
+{% endblock %}

@@ -1,0 +1,509 @@
+{% extends "base.html" %}
+{% block title %}Военные подразделения{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+<style>
+    /* Основные стили */
+    .unit-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    .filter-card {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    /* Стили для табличного представления */
+    .scrollable-table-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 250px);
+    }
+    .scrollable-table {
+        overflow-y: auto;
+        flex-grow: 1;
+    }
+    .table-responsive {
+        overflow-x: auto;
+    }
+    .sticky-header {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+    /* Стили для древовидного представления */
+    .hierarchy-view {
+        background: #f8f9fa;
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 20px;
+        min-height: 200px; /* Минимальная высота для визуальной стабильности */
+    }
+    .hierarchy-item {
+        margin-left: 20px;
+        position: relative;
+        padding-bottom: 5px;
+    }
+    .hierarchy-item:before {
+        content: "";
+        position: absolute;
+        left: -15px;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background: #dee2e6;
+    }
+    .hierarchy-item:after {
+        content: "";
+        position: absolute;
+        left: -15px;
+        top: 15px;
+        width: 10px;
+        height: 1px;
+        background: #dee2e6;
+    }
+    /* Убираем линии у корневых элементов */
+    .hierarchy-view > .hierarchy-item {
+        margin-left: 0;
+    }
+    .hierarchy-view > .hierarchy-item:before,
+    .hierarchy-view > .hierarchy-item:after {
+        display: none;
+    }
+
+    .hierarchy-item-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 5px 0;
+        cursor: pointer;
+        border-radius: 4px;
+    }
+    .hierarchy-item-header:hover {
+        background-color: #e9ecef;
+    }
+    .hierarchy-item-content {
+        margin-left: 25px;
+        display: none; /* По умолчанию свернуто */
+    }
+    /* Активные элементы раскрыты */
+    .hierarchy-item.active > .hierarchy-item-content {
+        display: block;
+    }
+    /* Элементы в пути к фокусному также раскрыты */
+    .hierarchy-item.in-path > .hierarchy-item-content {
+        display: block;
+    }
+    .hierarchy-badge {
+        font-size: 0.8em;
+        padding: 0.25em 0.5em;
+    }
+    .time-range-badge {
+        font-size: 0.75em;
+        background: #e9ecef;
+        color: #495057;
+        padding: 0.25em 0.5em;
+        border-radius: 3px;
+    }
+    .action-buttons .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+    .country-france {
+        background-color: #0d6efd; /* синий */
+    }
+    .country-british, .badge.country-england, .badge.country-britain {
+        background-color: #dc3545; /* красный */
+    }
+    .country-spain {
+        background-color: #ffc107; /* желтый */
+        color: #212529; /* темный текст для контраста */
+    }
+    .country-portugal {
+        background-color: #198754; /* зеленый */
+    }
+    .country-default {
+        background-color: #6c757d; /* серый по умолчанию */
+    }
+    /* Стиль для фокусного подразделения */
+    .focus-highlight {
+        background-color: #fff3cd !important; /* Светло-желтый фон */
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-weight: bold;
+    }
+    /* Адаптивные стили */
+    @media (max-width: 768px) {
+        .scrollable-table-container {
+            height: calc(100vh - 300px);
+        }
+        .hierarchy-item-header {
+            flex-wrap: wrap;
+        }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">
+            <i class="bi bi-diagram-3"></i> Военные подразделения
+        </h2>
+        <div>
+            <a href="{{ url_for('units.new_unit') }}" class="btn btn-primary me-2">
+                <i class="bi bi-plus-circle"></i> Добавить
+            </a>
+            <button class="btn btn-outline-secondary" id="toggle-view">
+                <i class="bi bi-list-ul"></i> Табличный вид
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- Фильтры -->
+        <div class="filter-card">
+            <form method="GET" action="{{ url_for('units.list_units') }}" id="filter-form">
+                <div class="row g-3">
+
+                    <!-- НОВЫЙ ФИЛЬТР: Выбор подразделения для фокуса -->
+                    <div class="col-md-3">
+                        <label for="focus_unit" class="form-label">Наименование подразделения</label>
+                        <select class="form-select" id="focus_unit" name="focus_unit">
+                            <option value="">Все подразделения</option>
+                            <!-- Передаем все подразделения из контекста -->
+                            {% for unit in all_units_for_focus_filter %}
+                                <option value="{{ unit.id }}"
+                                    {% if request.args.get('focus_unit')|int == unit.id %}selected{% endif %}>
+                                    {{ unit.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="unit_type" class="form-label">Тип подразделения</label>
+                        <select class="form-select" id="unit_type" name="unit_type">
+                            <option value="">Все типы</option>
+                            {% for type in unit_types %}
+                                <option value="{{ type.id }}"
+                                    {% if request.args.get('unit_type')|int == type.id %}selected{% endif %}>
+                                    {{ type.connection_type }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="country" class="form-label">Страна</label>
+                        <select class="form-select" id="country" name="country">
+                            <option value="">Все страны</option>
+                            {% for country in countries %}
+                                <option value="{{ country.id }}"
+                                    {% if request.args.get('country')|int == country.id %}selected{% endif %}>
+                                    {{ country.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="date" class="form-label">На дату</label>
+                        <input type="date" class="form-control" id="date" name="date"
+                               value="{{ request.args.get('date') or '' }}">
+                    </div>
+
+                    
+                    <!-- КОНЕЦ НОВОГО ФИЛЬТРА -->
+
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="btn-group w-100">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-funnel"></i> Применить
+                            </button>
+                            <a href="{{ url_for('units.list_units') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle"></i> Сбросить
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <!-- Табличное представление -->
+        <div id="table-view" style="display: none;">
+            <div class="scrollable-table-container">
+                <div class="table-responsive scrollable-table">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light sticky-header">
+                            <tr>
+                                <th>Наименование</th>
+                                <th>Тип</th>
+                                <th>Страна</th>
+                                <th>Дата формирования</th>
+                                <th>Родительское подразделение</th>
+                                <th class="text-end">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for unit in all_units %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('units.view_unit', id=unit.id) }}" class="text-decoration-none">
+                                        <strong>{{ unit.name }}</strong>
+                                    </a>
+                                </td>
+                                <td>
+                                    {% if unit.unit_type %}
+                                    <span class="badge bg-secondary">
+                                        {{ unit.unit_type.connection_type }}
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if unit.country %}
+                                    <span class="badge country-{{ unit.country.name|lower }}">
+                                        {{ unit.country.name }}
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if unit.formation_date %}
+                                        {{ unit.formation_date.strftime('%d.%m.%Y') }}
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% set parent = unit.get_parent_at_date(request.args.get('date')) %}
+                                    {% if parent %}
+                                        <a href="{{ url_for('units.view_unit', id=parent.id) }}" class="text-decoration-none">
+                                            {{ parent.name }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end action-buttons">
+                                    <div class="btn-group">
+                                        <a href="{{ url_for('units.view_unit', id=unit.id) }}"
+                                           class="btn btn-sm btn-outline-primary" title="Просмотр">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a href="{{ url_for('units.edit_unit', id=unit.id) }}"
+                                           class="btn btn-sm btn-outline-secondary" title="Редактировать">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <form action="{{ url_for('units.delete_unit', id=unit.id) }}"
+                                              method="POST" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                    title="Удалить" onclick="return confirm('Вы уверены?')">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-muted small mt-2">
+                    Всего подразделений: {{ all_units|length }}
+                </div>
+            </div>
+        </div>
+        <!-- Древовидное представление -->
+        <div id="hierarchy-view">
+            <div class="hierarchy-view">
+                {% if focus_unit_id and path_to_focus %}
+                    <!-- Отображение фокусной иерархии -->
+                    <!-- top_level_units содержит корневой элемент пути -->
+                    {% if top_level_units %}
+                        {% set root_unit_in_path = top_level_units[0] %}
+                        <div class="hierarchy-item active in-path"> <!-- Активируем корень пути -->
+                            <div class="hierarchy-item-header">
+                                <span class="badge bg-secondary hierarchy-badge">{{ root_unit_in_path.type }}</span>
+                                <!-- Подсветка, если это фокусный юнит -->
+                                {% if root_unit_in_path.id == focus_unit_id %}
+                                    <strong class="focus-highlight">{{ root_unit_in_path.name }}</strong>
+                                {% else %}
+                                    <strong>{{ root_unit_in_path.name }}</strong>
+                                {% endif %}
+                                {% if root_unit_in_path.country %}
+                                    <span class="badge country-{{ root_unit_in_path.country.name|lower }} hierarchy-badge">{{ root_unit_in_path.country.name }}</span>
+                                {% endif %}
+                                {% if root_unit_in_path.formation_date %}
+                                    <span class="time-range-badge">
+                                        {{ root_unit_in_path.formation_date.strftime('%d.%m.%Y') }} -
+                                        {% if root_unit_in_path.dissolution_date %}
+                                            {{ root_unit_in_path.dissolution_date.strftime('%d.%m.%Y') }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </span>
+                                {% endif %}
+                                <div class="ms-auto btn-group action-buttons">
+                                    <a href="{{ url_for('units.view_unit', id=root_unit_in_path.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
+                                    <a href="{{ url_for('units.edit_unit', id=root_unit_in_path.id) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+                                    <form action="{{ url_for('units.delete_unit', id=root_unit_in_path.id) }}" method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Вы уверены?')"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="hierarchy-item-content" style="display: block;"> <!-- Открываем содержимое корня пути -->
+                                <!-- Рекурсивно отрисуем детей, начиная с корня пути -->
+                                {% set children_of_root = root_unit_in_path.get_children_at_date(request.args.get('date')) %}
+                                {% if children_of_root %}
+                                    {% for child in children_of_root %}
+                                        {% with parent_unit=root_unit_in_path, target_date=request.args.get('date'), focus_id=focus_unit_id, path_ids=path_to_focus %}
+                                            {% include 'units/_hierarchy_item.html' %}
+                                        {% endwith %}
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% else %}
+                         <div class="alert alert-warning">Не удалось отобразить фокусную иерархию.</div>
+                    {% endif %}
+                {% elif focus_unit_id %}
+                     <div class="alert alert-warning">Не удалось построить путь к выбранному подразделению.</div>
+                {% else %}
+                    <!-- Стандартное отображение иерархии -->
+                    {% if top_level_units %}
+                        {% for unit in top_level_units %}
+                        <div class="hierarchy-item active"> <!-- Активируем по умолчанию -->
+                            <div class="hierarchy-item-header">
+                                <span class="badge bg-secondary hierarchy-badge">{{ unit.type }}</span>
+                                <strong>{{ unit.name }}</strong>
+                                {% if unit.country %}
+                                    <span class="badge country-{{ unit.country.name|lower }} hierarchy-badge">{{ unit.country.name }}</span>
+                                {% endif %}
+                                {% if unit.formation_date %}
+                                    <span class="time-range-badge">
+                                        {{ unit.formation_date.strftime('%d.%m.%Y') }} -
+                                        {% if unit.dissolution_date %}
+                                            {{ unit.dissolution_date.strftime('%d.%m.%Y') }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </span>
+                                {% endif %}
+                                <div class="ms-auto btn-group action-buttons">
+                                    <a href="{{ url_for('units.view_unit', id=unit.id) }}"
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{{ url_for('units.edit_unit', id=unit.id) }}"
+                                       class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form action="{{ url_for('units.delete_unit', id=unit.id) }}"
+                                          method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                onclick="return confirm('Вы уверены?')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="hierarchy-item-content"> <!-- Содержимое по умолчанию скрыто, но активируется выше -->
+                                {% set children = unit.get_children_at_date(request.args.get('date')) %}
+                                {% if children %}
+                                    {% for child in children %}
+                                        {% with parent_unit=unit, target_date=request.args.get('date'), focus_id=None, path_ids=None %}
+                                            {% include 'units/_hierarchy_item.html' %}
+                                        {% endwith %}
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> Не найдено подразделений по выбранным фильтрам
+                        </div>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Переключение между представлениями
+    const toggleViewBtn = document.getElementById('toggle-view');
+    const tableView = document.getElementById('table-view');
+    const hierarchyView = document.getElementById('hierarchy-view');
+    // Инициализация: показать иерархию по умолчанию
+    tableView.style.display = 'none';
+    hierarchyView.style.display = 'block';
+    toggleViewBtn.innerHTML = '<i class="bi bi-list-ul"></i> Табличный вид';
+
+    toggleViewBtn.addEventListener('click', function() {
+        if (tableView.style.display === 'none') {
+            tableView.style.display = 'block';
+            hierarchyView.style.display = 'none';
+            this.innerHTML = '<i class="bi bi-diagram-3"></i> Иерархический вид';
+        } else {
+            tableView.style.display = 'none';
+            hierarchyView.style.display = 'block';
+            this.innerHTML = '<i class="bi bi-list-ul"></i> Табличный вид';
+        }
+    });
+
+    // Раскрытие/сворачивание ветвей иерархии
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.hierarchy-item-header')) {
+            const item = e.target.closest('.hierarchy-item');
+            // Переключаем класс 'active' только если это не корневой элемент в режиме фокуса
+            // или если режим фокуса не активен. В режиме фокуса '.in-path' уже активны.
+            // Простое решение: всегда переключать, кроме случаев, где это может сломать логику фокуса.
+            // Для простоты оставим как есть - пользователь может управлять.
+            item.classList.toggle('active');
+        }
+    });
+
+    // Подсветка активных фильтров (если значение не пустое)
+    const activeFilters = document.querySelectorAll('select[name], input[name]');
+    activeFilters.forEach(filter => {
+        if (filter.value && filter.value.trim() !== '') {
+            filter.classList.add('is-valid'); // Bootstrap класс для валидного поля
+        } else {
+             filter.classList.remove('is-valid');
+        }
+    });
+    // AJAX фильтрация (опционально)
+    const filterForm = document.getElementById('filter-form');
+    if (filterForm) {
+        filterForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const params = new URLSearchParams(formData).toString();
+            
+            fetch(`${this.action}?${params}`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newContent = doc.querySelector('.card-body').innerHTML;
+                document.querySelector('.card-body').innerHTML = newContent;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                window.location.href = `${this.action}?${params}`;
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

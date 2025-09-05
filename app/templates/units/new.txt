@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Новое подразделение{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+<style>
+    .form-label.required:after { content: " *"; color: #dc3545; }
+    .select2-container--default .select2-selection--single { height: 38px; padding: 5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="mb-0">Создание нового подразделения</h2>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('units.new_unit') }}" novalidate>
+            {% include "partials/_form_errors.html" %}
+            
+            <div class="mb-3">
+                <label for="name" class="form-label required">Название подразделения:</label>
+                <input type="text" class="form-control" id="name" name="name" required
+                       value="{{ form_data.name if form_data }}">
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="unit_type_id" class="form-label required">Тип подразделения:</label>
+                        <select class="form-select select2" id="unit_type_id" name="unit_type_id" required>
+                            <option value="">-- Выберите тип --</option>
+                            {% for type in unit_types %}
+                                <option value="{{ type.id }}"
+                                    {% if form_data and form_data.unit_type_id == type.id %}selected{% endif %}>
+                                    {{ type.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="country_id" class="form-label required">Страна:</label>
+                        <select class="form-select select2" id="country_id" name="country_id" required>
+                            <option value="">-- Выберите страну --</option>
+                            {% for country in countries %}
+                                <option value="{{ country.id }}"
+                                    {% if form_data and form_data.country_id == country.id %}selected{% endif %}>
+                                    {{ country.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="parent_unit_id" class="form-label">Вышестоящее подразделение:</label>
+                        <select class="form-select select2" id="parent_unit_id" name="parent_unit_id"
+                                {% if not form_data or not form_data.country_id %}disabled{% endif %}>
+                            <option value="">-- Независимое подразделение --</option>
+                            {% if form_data and form_data.country_id %}
+                                {% for parent in parent_units %}
+                                    <option value="{{ parent.id }}"
+                                        {% if form_data.parent_unit_id == parent.id %}selected{% endif %}>
+                                        {{ parent.name }}
+                                    </option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="commander_id" class="form-label">Командующий:</label>
+                        <select class="form-select select2" id="commander_id" name="commander_id"
+                                {% if not form_data or not form_data.country_id %}disabled{% endif %}>
+                            <option value="">-- Не назначен --</option>
+                            {% if form_data and form_data.country_id %}
+                                {% for commander in commanders %}
+                                    <option value="{{ commander.id }}"
+                                        {% if form_data.commander_id == commander.id %}selected{% endif %}>
+                                        {{ commander.last_name }} {{ commander.first_name }}
+                                    </option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="formation_date" class="form-label">Дата формирования:</label>
+                        <input type="date" class="form-control" id="formation_date" name="formation_date"
+                               value="{{ form_data.formation_date if form_data }}">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="dissolution_date" class="form-label">Дата расформирования:</label>
+                        <input type="date" class="form-control" id="dissolution_date" name="dissolution_date"
+                               value="{{ form_data.dissolution_date if form_data }}">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('units.list_units') }}" class="btn btn-secondary">
+                    Отмена
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    Создать подразделение
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/ru.js"></script>
+<script>
+$(document).ready(function() {
+    // Инициализация Select2
+    $('.select2').select2({
+        language: 'ru',
+        width: '100%'
+    });
+
+    // Загрузка родительских подразделений и командующих при изменении страны
+    $('#country_id').change(function() {
+        const countryId = $(this).val();
+        const parentSelect = $('#parent_unit_id');
+        const commanderSelect = $('#commander_id');
+        
+        if (countryId) {
+            parentSelect.prop('disabled', false).empty().append('<option value="">-- Загрузка... --</option>');
+            commanderSelect.prop('disabled', false).empty().append('<option value="">-- Загрузка... --</option>');
+            
+            // Загрузка родительских подразделений
+            $.get("{{ url_for('units.get_units_by_country') }}", { country_id: countryId }, function(data) {
+                parentSelect.empty().append('<option value="">-- Независимое подразделение --</option>');
+                $.each(data, function(index, unit) {
+                    parentSelect.append($('<option>', {
+                        value: unit.id,
+                        text: unit.name
+                    }));
+                });
+            });
+            
+            // Загрузка командующих
+            $.get("{{ url_for('units.get_commanders_by_country') }}", { country_id: countryId }, function(data) {
+                commanderSelect.empty().append('<option value="">-- Не назначен --</option>');
+                $.each(data, function(index, commander) {
+                    commanderSelect.append($('<option>', {
+                        value: commander.id,
+                        text: commander.name
+                    }));
+                });
+            });
+        } else {
+            parentSelect.prop('disabled', true).empty().append('<option value="">-- Сначала выберите страну --</option>');
+            commanderSelect.prop('disabled', true).empty().append('<option value="">-- Сначала выберите страну --</option>');
+        }
+    });
+
+    // Валидация формы
+    $('form').submit(function() {
+        let isValid = true;
+        $('.required').each(function() {
+            const input = $(this).is('label') ? $('#' + $(this).attr('for')) : $(this);
+            if (!input.val()) {
+                isValid = false;
+                input.addClass('is-invalid');
+                input.next('.invalid-feedback').remove();
+                input.after('<div class="invalid-feedback">Это поле обязательно для заполнения</div>');
+            }
+        });
+        
+        // Дополнительная проверка дат
+        const formationDate = $('#formation_date').val();
+        const dissolutionDate = $('#dissolution_date').val();
+        
+        if (formationDate && dissolutionDate && new Date(dissolutionDate) < new Date(formationDate)) {
+            isValid = false;
+            $('#dissolution_date').addClass('is-invalid');
+            $('#dissolution_date').next('.invalid-feedback').remove();
+            $('#dissolution_date').after(
+                '<div class="invalid-feedback">Дата расформирования не может быть раньше даты формирования</div>'
+            );
+        }
+        
+        return isValid;
+    });
+});
+</script>
+{% endblock %}

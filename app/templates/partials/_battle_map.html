@@ -1,0 +1,63 @@
+<div class="battle-map">
+    <div id="map" class="map-container"></div>
+</div>
+
+<script>
+function initBattleMap(mapElementId, battleData) {
+    const map = L.map(mapElementId).setView([51.505, -0.09], 3);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    const markers = {};
+    const battleRows = $('.battle-row');
+
+    battleData.forEach(battle => {
+        if (!battle.geom) return;
+
+        try {
+            const geom = JSON.parse(battle.geom);
+            let lat, lng;
+            
+            if (geom.type === "Point") {
+                [lng, lat] = geom.coordinates;
+            } else if (geom.type === "MultiPoint") {
+                [lng, lat] = geom.coordinates[0];
+            } else {
+                console.warn("Unsupported geometry type:", geom.type);
+                return;
+            }
+
+            markers[battle.id] = L.marker([lat, lng])
+                .addTo(map)
+                .bindPopup(`<b>${battle.name}</b><br>${battle.date}`);
+            
+            $(`tr[data-id="${battle.id}"]`).hover(
+                function() {
+                    $(this).addClass('highlighted');
+                    markers[battle.id].openPopup();
+                },
+                function() {
+                    $(this).removeClass('highlighted');
+                }
+            ).click(function() {
+                map.setView([lat, lng], 8);
+            });
+
+            markers[battle.id].on('click', function() {
+                battleRows.removeClass('highlighted');
+                $(`tr[data-id="${battle.id}"]`).addClass('highlighted')
+                    .get(0).scrollIntoView({behavior: 'smooth', block: 'nearest'});
+            });
+
+        } catch (e) {
+            console.error("Error parsing geometry:", e);
+        }
+    });
+
+    if (Object.keys(markers).length > 0) {
+        const markerGroup = new L.FeatureGroup(Object.values(markers));
+        map.fitBounds(markerGroup.getBounds().pad(0.2));
+    }
+}
+</script>

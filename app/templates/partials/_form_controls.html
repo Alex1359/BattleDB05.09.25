@@ -1,0 +1,12 @@
+{% if errors %}
+    <div class="alert alert-danger">
+        <h5 class="alert-heading">Пожалуйста, исправьте следующие ошибки:</h5>
+        <ul class="mb-0">
+            {% for field, field_errors in errors.items() %}
+                {% for error in field_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            {% endfor %}
+        </ul>
+    </div>
+{% endif %}

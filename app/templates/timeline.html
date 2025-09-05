@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Временная шкала</title>
+    <style>
+        /* Контейнер для временной шкалы */
+        .timeline { 
+            position: relative; 
+            max-width: 750px; 
+            margin: 0 auto; 
+        }
+
+        .timeline::after {
+            content: ''; 
+            position: absolute; 
+            width: 6px; 
+            background-color: #000000;
+            top: 0; 
+            bottom: 0; 
+            left: 50%; 
+            margin-left: -3px;
+        }
+
+        .timeline-entry { 
+            padding: 10px 5px; 
+            position: relative; 
+            width: 50%; 
+        }
+
+        .timeline-entry-left { 
+            left: -4%; 
+            text-align: center;
+        }
+
+        .timeline-entry-right { 
+            left: 53%; 
+            text-align: center;
+        }
+
+        /* Стандартные стили для даты */
+        .timeline-date { 
+            font-size: 1.5em; 
+            color: #000000;
+            margin-bottom: 2px;
+        }
+
+        .timeline-date_end { 
+            font-size: 1.5em; 
+            color: #000000;
+            margin-bottom: 2px;
+        }
+
+        /* Дополнительное позиционирование для даты слева */
+        .timeline-entry-left .timeline-date {
+            margin-left: 64%; /* Сдвигаем вправо, корректируйте значение по необходимости */
+        }
+
+        /* Дополнительное позиционирование для даты слева */
+        .timeline-entry-left .timeline-date_end {
+            margin-left: 64%; /* Сдвигаем вправо, корректируйте значение по необходимости */
+        }
+
+        /* Дополнительное позиционирование для даты слева */
+        .timeline-entry-right .timeline-date {
+            margin-left: -64%; /* Сдвигаем вправо, корректируйте значение по необходимости */
+        }
+
+        /* Дополнительное позиционирование для даты слева */
+        .timeline-entry-right .timeline-date_end {
+            margin-left: -64%; /* Сдвигаем вправо, корректируйте значение по необходимости */
+        }
+
+        /* Стили для временной шкалы */
+        .timeline-content { 
+            padding: 5px 10px; 
+            background-color: #e8e7e7; 
+            border-radius: 10px; 
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+
+        .timeline-date h2, .timeline-date_end h2 {
+            margin: 0; /* Убирает отступ по умолчанию */
+            font-size: 1.2em;
+            line-height: 1.2; /* Устанавливает межстрочный интервал */
+        }
+
+
+        .timeline-entry-left .timeline-content {
+            margin-left: auto;
+            margin-right: 0%;
+        } 
+
+        .timeline-entry-right .timeline-content {
+            margin-left: 0%; /* Добавляем отступ сверху для контента */
+        }
+
+    </style>
+</head>
+<body>
+    <div class="timeline">
+        {% for event in events %}
+            <div class="timeline-entry {% if loop.index % 2 == 0 %}timeline-entry-right{% else %}timeline-entry-left{% endif %}">
+                <div class="timeline-date">
+                    <h2>{{ event[0] }}</h2>
+                </div>
+                <div class="timeline-date_end">
+                    {% if event[1] and event[1] != 'none' %}
+                        <h2>{{ event[1] }}</h2>
+                    {% endif %}
+                </div>
+                <div class="timeline-content">
+                    <p>{{ event[2] }}</p>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
+

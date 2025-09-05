@@ -1,0 +1,52 @@
+<!-- app/templates/units/_hierarchy_item.html -->
+{% set current_unit = child %}
+{% set is_in_focus_path = path_ids and current_unit.id in path_ids %}
+{% set is_focus_unit = current_unit.id == focus_id %}
+
+<!-- Определяем, нужно ли отображать этот элемент и его детей -->
+<!-- Отображаем, если: 1) Нет специального пути (обычный режим) ИЛИ 2) Элемент в пути ИЛИ 3) Родитель - фокусный элемент -->
+{% set should_render = (path_ids is none) or is_in_focus_path or (parent_unit.id == focus_id) %}
+
+{% if should_render %}
+<div class="hierarchy-item {% if is_in_focus_path %}in-path{% endif %} {% if is_focus_unit %}active{% endif %}">
+    <div class="hierarchy-item-header">
+        <span class="badge bg-secondary hierarchy-badge">{{ current_unit.type }}</span>
+        {% if is_focus_unit %}
+            <strong class="focus-highlight">{{ current_unit.name }}</strong>
+        {% else %}
+            <strong>{{ current_unit.name }}</strong>
+        {% endif %}
+        {% if current_unit.country %}
+            <span class="badge country-{{ current_unit.country.name|lower }} hierarchy-badge">{{ current_unit.country.name }}</span>
+        {% endif %}
+        {% if current_unit.formation_date %}
+            <span class="time-range-badge">
+                {{ current_unit.formation_date.strftime('%d.%m.%Y') }} -
+                {% if current_unit.dissolution_date %}
+                    {{ current_unit.dissolution_date.strftime('%d.%m.%Y') }}
+                {% else %}
+                    -
+                {% endif %}
+            </span>
+        {% endif %}
+        <div class="ms-auto btn-group action-buttons">
+            <a href="{{ url_for('units.view_unit', id=current_unit.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
+            <a href="{{ url_for('units.edit_unit', id=current_unit.id) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+            <form action="{{ url_for('units.delete_unit', id=current_unit.id) }}" method="POST" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Вы уверены?')"><i class="bi bi-trash"></i></button>
+            </form>
+        </div>
+    </div>
+    <div class="hierarchy-item-content" {% if is_in_focus_path or is_focus_unit %}style="display: block;"{% endif %}>
+        {% set children_of_current = current_unit.get_children_at_date(target_date) %}
+        {% if children_of_current %}
+            {% for grandchild in children_of_current %}
+                <!-- Рекурсивный вызов с теми же контекстами -->
+                {% with child=grandchild, parent_unit=current_unit, target_date=target_date, focus_id=focus_id, path_ids=path_ids %}
+                    {% include 'units/_hierarchy_item.html' %}
+                {% endwith %}
+            {% endfor %}
+        {% endif %}
+    </div>
+</div>
+{% endif %}

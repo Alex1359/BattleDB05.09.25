@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1>Welcome to Battles Database</h1>
+    <p>This is a historical database of military battles, commanders and units.</p>
+    
+    <div class="quick-links">
+        <a href="{{ url_for('battles.some_battle_route') }}" class="btn btn-primary">Browse Battles</a>
+        <a href="{{ url_for('commanders.list_commanders') }}" class="btn btn-primary">View Persons</a>
+        <a href="{{ url_for('units.list_units') }}" class="btn btn-primary">Explore Units</a>
+    </div>
+</div>
+{% endblock %}
