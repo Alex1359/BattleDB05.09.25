@@ -1,0 +1,119 @@
+from app import db
+from datetime import datetime
+
+class Country(db.Model):
+    __tablename__ = 'countries'  # Обратите внимание на множественное число
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    
+    commanders = db.relationship('Commander', back_populates='country', lazy=True)
+    units = db.relationship('MilitaryUnit', backref='country', lazy=True)
+    ranks = db.relationship('MilitaryRank', backref='countries', lazy=True)
+
+class MilitaryRank(db.Model):
+    __tablename__ = 'military_ranks'  # Обратите внимание на множественное число
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    rank_level = db.Column(db.Integer)
+    country_id = db.Column(db.Integer, db.ForeignKey('countries.id'), nullable=False)
+    
+    commanders = db.relationship('Commander', backref='rank', lazy=True)
+
+class Commander(db.Model):
+    __tablename__ = 'commanders'  # Обратите внимание на множественное число
+
+    id = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String(50), nullable=False)
+    last_name = db.Column(db.String(50), nullable=False)
+    birth_date = db.Column(db.Date)
+    death_date = db.Column(db.Date)
+    biography = db.Column(db.Text)
+    
+    nationally_id = db.Column(db.Integer, db.ForeignKey('countries.id'), nullable=False)
+    rank_id = db.Column(db.Integer, db.ForeignKey('military_rank.id'))
+    
+    country = db.relationship('Country', back_populates='commanders')
+    rank = db.relationship('MilitaryRank', back_populates='commanders')
+    units = db.relationship('MilitaryUnit', backref='commander', lazy=True)
+    battle_participations = db.relationship('BattleParticipant', backref='commander', lazy=True)
+
+class MilitaryUnit(db.Model):
+    __tablename__ = 'military_units'  # Обратите внимание на множественное число
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    formation_date = db.Column(db.Date)
+    dissolution_date = db.Column(db.Date)
+    
+    country_id = db.Column(db.Integer, db.ForeignKey('countries.id'), nullable=False)
+    parent_unit_id = db.Column(db.Integer, db.ForeignKey('military_units.id'))
+    commander_id = db.Column(db.Integer, db.ForeignKey('commanders.id'))
+    
+    country = db.relationship('Country', back_populates='units')
+    commander = db.relationship('Commander', back_populates='units')
+    parent = db.relationship('MilitaryUnit', remote_side=[id], backref='subunits')
+    battle_participations = db.relationship('BattleParticipant', back_populates='unit', lazy=True)
+    movements = db.relationship('UnitMovement', back_populates='unit', lazy=True)
+
+class Battle(db.Model):
+    __tablename__ = 'battles'  # Обратите внимание на множественное число
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date)
+    description = db.Column(db.Text)
+    place_id = db.Column(db.Integer, db.ForeignKey('place.id'))
+    
+    participants = db.relationship('BattleParticipant', backref='battle', lazy=True)
+    trophies = db.relationship('Trophy', backref='battle', lazy=True)
+
+class BattleParticipant(db.Model):
+    __tablename__ = 'battle_participants'  # Обратите внимание на множественное число
+    id = db.Column(db.Integer, primary_key=True)
+    side = db.Column(db.String(20), nullable=False)  # allies/axis/other
+    is_victor = db.Column(db.Boolean, default=False)
+    
+    battle_id = db.Column(db.Integer, db.ForeignKey('battle.id'), nullable=False)
+    unit_id = db.Column(db.Integer, db.ForeignKey('military_unit.id'))
+    commander_id = db.Column(db.Integer, db.ForeignKey('commander.id'))
+    
+    losses = db.relationship('BattleLoss', backref='participant', lazy=True)
+
+class BattleLoss(db.Model):
+    __tablename__ = 'battle_losses'  # Обратите внимание на множественное число
+    id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(50), nullable=False)  # killed/wounded/captured
+    count = db.Column(db.Integer, nullable=False)
+    
+    participant_id = db.Column(db.Integer, db.ForeignKey('battle_participant.id'), nullable=False)
+
+class Trophy(db.Model):
+    __tablename__ = 'trophies'  # Обратите внимание на множественное число
+    id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text)
+    quantity = db.Column(db.Integer, default=1)
+    
+    battle_id = db.Column(db.Integer, db.ForeignKey('battle.id'), nullable=False)
+    captor_id = db.Column(db.Integer, db.ForeignKey('military_unit.id'))
+
+class Place(db.Model):
+    __tablename__ = 'places'  # Обратите внимание на множественное число
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    
+    battles = db.relationship('Battle', backref='place', lazy=True)
+    movements_from = db.relationship('UnitMovement', foreign_keys='UnitMovement.start_place_id', backref='start_place')
+    movements_to = db.relationship('UnitMovement', foreign_keys='UnitMovement.end_place_id', backref='end_place')
+
+class UnitMovement(db.Model):
+    __tablename__ = 'unit_movements'  # Обратите внимание на множественное число
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False)
+    distance_km = db.Column(db.Float)
+    route_description = db.Column(db.Text)
+    
+    unit_id = db.Column(db.Integer, db.ForeignKey('military_unit.id'), nullable=False)
+    start_place_id = db.Column(db.Integer, db.ForeignKey('place.id'), nullable=False)
+    end_place_id = db.Column(db.Integer, db.ForeignKey('place.id'), nullable=False)
